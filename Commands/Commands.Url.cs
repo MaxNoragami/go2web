@@ -18,9 +18,9 @@ public partial class Commands
             return;
         }
 
-        if (uri.Scheme != Uri.UriSchemeHttp)
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Only HTTP URLs are currently supported. Provided: {uri.Scheme}");
+            AnsiConsole.MarkupLine($"[red]Error:[/] Only HTTP and HTTPS URLs are currently supported. Provided: {uri.Scheme}");
             return;
         }
 

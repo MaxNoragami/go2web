@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Net.Security;
 using System.Text;
 
 namespace go2web.Http;
@@ -7,15 +8,30 @@ public class SocketHttpClient
 {
     public async Task<HttpResponse> GetAsync(Uri uri)
     {
-        if (uri.Scheme != "http")
+        bool isHttps = uri.Scheme == "https";
+        if (uri.Scheme != "http" && uri.Scheme != "https")
         {
-            throw new NotSupportedException($"Only HTTP scheme is supported currently. Provided: {uri.Scheme}");
+            throw new NotSupportedException($"Only HTTP and HTTPS schemes are supported currently. Provided: {uri.Scheme}");
         }
 
+        int port = uri.Port > 0 ? uri.Port : (isHttps ? 443 : 80);
+
         using var tcpClient = new TcpClient();
-        await tcpClient.ConnectAsync(uri.Host, uri.Port > 0 ? uri.Port : 80);
+        await tcpClient.ConnectAsync(uri.Host, port);
 
         using var networkStream = tcpClient.GetStream();
+        Stream stream = networkStream;
+
+        if (isHttps)
+        {
+            var sslStream = new SslStream(
+                networkStream, 
+                false, 
+                new RemoteCertificateValidationCallback((sender, certificate, chain, sslPolicyErrors) => true)
+            );
+            await sslStream.AuthenticateAsClientAsync(uri.Host);
+            stream = sslStream;
+        }
 
         // Manually construct the raw HTTP GET request string
         var pathAndQuery = uri.PathAndQuery;
@@ -33,10 +49,10 @@ public class SocketHttpClient
         requestBuilder.Append("\r\n"); // End of headers
 
         byte[] requestBytes = Encoding.ASCII.GetBytes(requestBuilder.ToString());
-        await networkStream.WriteAsync(requestBytes, 0, requestBytes.Length);
+        await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
 
         // Read and parse the response
-        return await ParseResponseAsync(networkStream);
+        return await ParseResponseAsync(stream);
     }
 
     private async Task<HttpResponse> ParseResponseAsync(Stream stream)
