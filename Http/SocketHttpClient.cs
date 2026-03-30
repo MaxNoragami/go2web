@@ -6,53 +6,73 @@ namespace go2web.Http;
 
 public class SocketHttpClient
 {
-    public async Task<HttpResponse> GetAsync(Uri uri)
+    public async Task<HttpResponse> GetAsync(Uri uri, Action<Uri>? onRedirect = null)
     {
-        bool isHttps = uri.Scheme == "https";
-        if (uri.Scheme != "http" && uri.Scheme != "https")
+        Uri currentUri = uri;
+
+        while (true)
         {
-            throw new NotSupportedException($"Only HTTP and HTTPS schemes are supported currently. Provided: {uri.Scheme}");
+            bool isHttps = currentUri.Scheme == "https";
+            if (currentUri.Scheme != "http" && currentUri.Scheme != "https")
+            {
+                throw new NotSupportedException($"Only HTTP and HTTPS schemes are supported currently. Provided: {currentUri.Scheme}");
+            }
+
+            int port = currentUri.Port > 0 ? currentUri.Port : (isHttps ? 443 : 80);
+
+            using var tcpClient = new TcpClient();
+            await tcpClient.ConnectAsync(currentUri.Host, port);
+
+            using var networkStream = tcpClient.GetStream();
+            Stream stream = networkStream;
+
+            if (isHttps)
+            {
+                var sslStream = new SslStream(
+                    networkStream, 
+                    false, 
+                    new RemoteCertificateValidationCallback((sender, certificate, chain, sslPolicyErrors) => true)
+                );
+                await sslStream.AuthenticateAsClientAsync(currentUri.Host);
+                stream = sslStream;
+            }
+
+            // Manually construct the raw HTTP GET request string
+            var pathAndQuery = currentUri.PathAndQuery;
+            if (string.IsNullOrEmpty(pathAndQuery))
+            {
+                pathAndQuery = "/";
+            }
+
+            var requestBuilder = new StringBuilder();
+            requestBuilder.Append($"GET {pathAndQuery} HTTP/1.1\r\n");
+            requestBuilder.Append($"Host: {currentUri.Host}\r\n");
+            requestBuilder.Append("Connection: close\r\n");
+            requestBuilder.Append("User-Agent: go2web-client/1.0\r\n");
+            requestBuilder.Append("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n");
+            requestBuilder.Append("\r\n"); // End of headers
+
+            byte[] requestBytes = Encoding.ASCII.GetBytes(requestBuilder.ToString());
+            await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
+
+            // Read and parse the response
+            var response = await ParseResponseAsync(stream);
+
+            if (response.StatusCode == 301 || response.StatusCode == 302 || 
+                response.StatusCode == 303 || response.StatusCode == 307 || 
+                response.StatusCode == 308)
+            {
+                var location = response.GetHeader("Location");
+                if (!string.IsNullOrEmpty(location))
+                {
+                    currentUri = new Uri(currentUri, location);
+                    onRedirect?.Invoke(currentUri);
+                    continue;
+                }
+            }
+
+            return response;
         }
-
-        int port = uri.Port > 0 ? uri.Port : (isHttps ? 443 : 80);
-
-        using var tcpClient = new TcpClient();
-        await tcpClient.ConnectAsync(uri.Host, port);
-
-        using var networkStream = tcpClient.GetStream();
-        Stream stream = networkStream;
-
-        if (isHttps)
-        {
-            var sslStream = new SslStream(
-                networkStream, 
-                false, 
-                new RemoteCertificateValidationCallback((sender, certificate, chain, sslPolicyErrors) => true)
-            );
-            await sslStream.AuthenticateAsClientAsync(uri.Host);
-            stream = sslStream;
-        }
-
-        // Manually construct the raw HTTP GET request string
-        var pathAndQuery = uri.PathAndQuery;
-        if (string.IsNullOrEmpty(pathAndQuery))
-        {
-            pathAndQuery = "/";
-        }
-
-        var requestBuilder = new StringBuilder();
-        requestBuilder.Append($"GET {pathAndQuery} HTTP/1.1\r\n");
-        requestBuilder.Append($"Host: {uri.Host}\r\n");
-        requestBuilder.Append("Connection: close\r\n");
-        requestBuilder.Append("User-Agent: go2web-client/1.0\r\n");
-        requestBuilder.Append("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n");
-        requestBuilder.Append("\r\n"); // End of headers
-
-        byte[] requestBytes = Encoding.ASCII.GetBytes(requestBuilder.ToString());
-        await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
-
-        // Read and parse the response
-        return await ParseResponseAsync(stream);
     }
 
     private async Task<HttpResponse> ParseResponseAsync(Stream stream)

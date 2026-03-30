@@ -9,10 +9,12 @@ public partial class Commands
     /// <summary>Make an HTTP request to the specified URL and print the response.</summary>
     /// <param name="url">The URL to fetch.</param>
     /// <param name="fullHeaders">-f, Show response headers.</param>
+    /// <param name="redirects">-r, Number of redirects to follow.</param>
     [Command("-u")]
     public async Task Url(
         [Argument] string url,
-        bool fullHeaders = false)
+        bool fullHeaders = false,
+        int redirects = 5)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
@@ -31,7 +33,10 @@ public partial class Commands
         try
         {
             var client = new SocketHttpClient();
-            var response = await client.GetAsync(uri);
+            var response = await client.GetAsync(uri, redirectUri =>
+            {
+                AnsiConsole.MarkupLine($"[dim]Redirecting to {redirectUri}...[/]");
+            });
 
             AnsiConsole.MarkupLine($"\n[bold green]HTTP {response.StatusCode} {response.ReasonPhrase}[/]\n");
 
