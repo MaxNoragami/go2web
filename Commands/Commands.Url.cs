@@ -8,9 +8,11 @@ public partial class Commands
 {
     /// <summary>Make an HTTP request to the specified URL and print the response.</summary>
     /// <param name="url">The URL to fetch.</param>
+    /// <param name="fullHeaders">-f, Show response headers.</param>
     [Command("-u")]
     public async Task Url(
-        [Argument] string url)
+        [Argument] string url,
+        bool fullHeaders = false)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
@@ -32,6 +34,19 @@ public partial class Commands
             var response = await client.GetAsync(uri);
 
             AnsiConsole.MarkupLine($"\n[bold green]HTTP {response.StatusCode} {response.ReasonPhrase}[/]\n");
+
+            if (fullHeaders)
+            {
+                var table = new Table().Border(TableBorder.Rounded).Title("Response Headers");
+                table.AddColumn("Header");
+                table.AddColumn("Value");
+                foreach (var header in response.Headers)
+                {
+                    table.AddRow(new Markup($"[cyan]{header.Key}[/]"), new Markup(header.Value));
+                }
+                AnsiConsole.Write(table);
+                AnsiConsole.WriteLine();
+            }
             
             Console.WriteLine(response.BodyString);
         }
