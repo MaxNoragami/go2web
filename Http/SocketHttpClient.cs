@@ -6,9 +6,10 @@ namespace go2web.Http;
 
 public class SocketHttpClient
 {
-    public async Task<HttpResponse> GetAsync(Uri uri, Action<Uri>? onRedirect = null)
+    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, Action<Uri>? onRedirect = null)
     {
         Uri currentUri = uri;
+        int redirectsCount = 0;
 
         while (true)
         {
@@ -62,10 +63,16 @@ public class SocketHttpClient
                 response.StatusCode == 303 || response.StatusCode == 307 || 
                 response.StatusCode == 308)
             {
+                if (redirectsCount >= maxRedirects)
+                {
+                    throw new Exception($"Too many redirects (exceeded maximum of {maxRedirects})");
+                }
+
                 var location = response.GetHeader("Location");
                 if (!string.IsNullOrEmpty(location))
                 {
                     currentUri = new Uri(currentUri, location);
+                    redirectsCount++;
                     onRedirect?.Invoke(currentUri);
                     continue;
                 }

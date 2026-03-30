@@ -33,7 +33,7 @@ public partial class Commands
         try
         {
             var client = new SocketHttpClient();
-            var response = await client.GetAsync(uri, redirectUri =>
+            var response = await client.GetAsync(uri, redirects, redirectUri =>
             {
                 AnsiConsole.MarkupLine($"[dim]Redirecting to {redirectUri}...[/]");
             });
