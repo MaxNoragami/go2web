@@ -33,9 +33,9 @@ public partial class Commands
         try
         {
             var client = new SocketHttpClient();
-            var response = await client.GetAsync(uri, redirects, redirectUri =>
+            var response = await client.GetAsync(uri, redirects, (statusCode, redirectUri) =>
             {
-                AnsiConsole.MarkupLine($"[dim]Redirecting to {redirectUri}...[/]");
+                AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");
             });
 
             AnsiConsole.MarkupLine($"\n[bold green]HTTP {response.StatusCode} {response.ReasonPhrase}[/]\n");

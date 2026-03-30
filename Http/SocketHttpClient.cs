@@ -6,7 +6,7 @@ namespace go2web.Http;
 
 public class SocketHttpClient
 {
-    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, Action<Uri>? onRedirect = null)
+    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, Action<int, Uri>? onRedirect = null)
     {
         Uri currentUri = uri;
         int redirectsCount = 0;
@@ -73,7 +73,7 @@ public class SocketHttpClient
                 {
                     currentUri = new Uri(currentUri, location);
                     redirectsCount++;
-                    onRedirect?.Invoke(currentUri);
+                    onRedirect?.Invoke(response.StatusCode, currentUri);
                     continue;
                 }
             }
