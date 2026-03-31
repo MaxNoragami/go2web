@@ -12,12 +12,14 @@ public partial class Commands
     /// <param name="fullHeaders">-f, Show response headers.</param>
     /// <param name="redirects">-r, Number of redirects to follow.</param>
     /// <param name="accept">-a, Set the Accept header for content negotiation.</param>
+    /// <param name="lang">-l, Set the Accept-Language header (e.g. en, fr, ja).</param>
     [Command("-u")]
     public async Task Url(
         [Argument] string url,
         bool fullHeaders = false,
         int? redirects = null,
-        AcceptType accept = AcceptType.Html)
+        AcceptType accept = AcceptType.Html,
+        string lang = "*")
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
@@ -47,7 +49,7 @@ public partial class Commands
         try
         {
             var client = new SocketHttpClient();
-            var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, (statusCode, redirectUri) =>
+            var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, lang, (statusCode, redirectUri) =>
             {
                 AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");
             });
