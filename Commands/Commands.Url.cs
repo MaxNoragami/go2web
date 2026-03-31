@@ -31,6 +31,7 @@ public partial class Commands
 
         var config = ConfigLoader.Load();
         int maxRedirects = redirects ?? config.MaxRedirects;
+        fullHeaders = fullHeaders || config.AlwaysShowHeaders;
 
         AnsiConsole.MarkupLine($"[dim]Fetching {uri}...[/]");
 

@@ -18,6 +18,7 @@ public partial class Commands
     {
         var config = ConfigLoader.Load();
         int maxRedirects = redirects ?? config.MaxRedirects;
+        fullHeaders = fullHeaders || config.AlwaysShowHeaders;
 
         AnsiConsole.MarkupLine($"[green]Searching for:[/] {searchTerm} (max redirects: {maxRedirects})");
     }

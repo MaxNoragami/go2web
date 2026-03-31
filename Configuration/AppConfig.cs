@@ -5,7 +5,8 @@ namespace go2web.Configuration;
 
 public class AppConfig
 {
-    public int MaxRedirects { get; set; } = 5;
+    public int MaxRedirects { get; init; } = 5;
+    public bool AlwaysShowHeaders { get; init; } = false;
 }
 
 [JsonSerializable(typeof(AppConfig))]
@@ -16,6 +17,7 @@ public static class ConfigLoader
     private static readonly string ConfigDirectory;
     private static readonly string ConfigFilePath;
     private static readonly JsonSerializerOptions Options;
+    private static readonly AppConfigContext Context;
 
     public static string GetConfigFilePath() => ConfigFilePath;
 
@@ -29,8 +31,9 @@ public static class ConfigLoader
         { 
             PropertyNameCaseInsensitive = true,
             WriteIndented = true,
-            TypeInfoResolver = AppConfigContext.Default
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+        Context = new AppConfigContext(Options);
     }
 
     public static AppConfig Load()
@@ -43,7 +46,7 @@ public static class ConfigLoader
         try
         {
             string json = File.ReadAllText(ConfigFilePath);
-            var config = JsonSerializer.Deserialize(json, AppConfigContext.Default.AppConfig);
+            var config = JsonSerializer.Deserialize(json, Context.AppConfig);
 
             return config ?? CreateDefaultConfig();
         }
@@ -65,7 +68,7 @@ public static class ConfigLoader
                 Directory.CreateDirectory(ConfigDirectory);
             }
 
-            string json = JsonSerializer.Serialize(config, AppConfigContext.Default.AppConfig);
+            string json = JsonSerializer.Serialize(config, Context.AppConfig);
             File.WriteAllText(ConfigFilePath, json);
         }
         catch (Exception) { }
