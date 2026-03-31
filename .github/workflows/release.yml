@@ -9,8 +9,24 @@ on:
       - '.gitignore'
 
 jobs:
+  prepare:
+    name: Prepare Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Generate Version
+        id: version
+        run: |
+          DATE=$(date +'%Y.%-m.%-d')
+          RUN_NUMBER=${{ github.run_number }}
+          echo "version=${DATE}.${RUN_NUMBER}" >> $GITHUB_OUTPUT
+          echo "tag=v${DATE}.${RUN_NUMBER}" >> $GITHUB_OUTPUT
+
   build:
     name: Build ${{ matrix.target }}
+    needs: prepare
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -53,7 +69,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
       - name: Publish Native AOT
-        run: dotnet publish -c Release -r ${{ matrix.target }}
+        run: dotnet publish -c Release -r ${{ matrix.target }} -p:Version=${{ needs.prepare.outputs.version }} -p:AssemblyInformationalVersion=${{ needs.prepare.outputs.tag }}
 
       - name: Prepare Artifacts
         shell: bash
@@ -70,18 +86,11 @@ jobs:
 
   release:
     name: Create Release
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Generate Version Tag
-        id: version
-        run: |
-          DATE=$(date +'%Y.%m.%d')
-          RUN_NUMBER=${{ github.run_number }}
-          echo "tag=v${DATE}-${RUN_NUMBER}" >> $GITHUB_OUTPUT
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -103,7 +112,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: Release ${{ steps.version.outputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Release ${{ needs.prepare.outputs.tag }}
           files: release_assets/*.zip
           generate_release_notes: true
