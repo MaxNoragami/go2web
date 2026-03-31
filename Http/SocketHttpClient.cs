@@ -6,7 +6,7 @@ namespace go2web.Http;
 
 public class SocketHttpClient
 {
-    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, Action<int, Uri>? onRedirect = null)
+    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", Action<int, Uri>? onRedirect = null)
     {
         Uri currentUri = uri;
         int redirectsCount = 0;
@@ -50,7 +50,7 @@ public class SocketHttpClient
             requestBuilder.Append($"Host: {currentUri.Host}\r\n");
             requestBuilder.Append("Connection: close\r\n");
             requestBuilder.Append("User-Agent: go2web-client/1.0\r\n");
-            requestBuilder.Append("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n");
+            requestBuilder.Append($"Accept: {acceptHeader}\r\n");
             requestBuilder.Append("\r\n"); // End of headers
 
             byte[] requestBytes = Encoding.ASCII.GetBytes(requestBuilder.ToString());

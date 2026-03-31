@@ -11,11 +11,13 @@ public partial class Commands
     /// <param name="url">The URL to fetch.</param>
     /// <param name="fullHeaders">-f, Show response headers.</param>
     /// <param name="redirects">-r, Number of redirects to follow.</param>
+    /// <param name="accept">-a, Set the Accept header for content negotiation.</param>
     [Command("-u")]
     public async Task Url(
         [Argument] string url,
         bool fullHeaders = false,
-        int? redirects = null)
+        int? redirects = null,
+        AcceptType accept = AcceptType.Html)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
@@ -35,10 +37,17 @@ public partial class Commands
 
         AnsiConsole.MarkupLine($"[dim]Fetching {uri}...[/]");
 
+        string acceptHeaderValue = accept switch
+        {
+            AcceptType.Json => "application/json",
+            AcceptType.Html => "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            _ => "text/html"
+        };
+
         try
         {
             var client = new SocketHttpClient();
-            var response = await client.GetAsync(uri, maxRedirects, (statusCode, redirectUri) =>
+            var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, (statusCode, redirectUri) =>
             {
                 AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");
             });
