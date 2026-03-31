@@ -17,6 +17,8 @@ public static class ConfigLoader
     private static readonly string ConfigFilePath;
     private static readonly JsonSerializerOptions Options;
 
+    public static string GetConfigFilePath() => ConfigFilePath;
+
     static ConfigLoader()
     {
         string baseDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
