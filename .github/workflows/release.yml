@@ -1,0 +1,118 @@
+name: Release go2web
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+
+jobs:
+  prepare:
+    name: Prepare Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Generate Version
+        id: version
+        run: |
+          DATE=$(date +'%Y.%-m.%-d')
+          RUN_NUMBER=${{ github.run_number }}
+          echo "version=${DATE}.${RUN_NUMBER}" >> $GITHUB_OUTPUT
+          echo "tag=v${DATE}.${RUN_NUMBER}" >> $GITHUB_OUTPUT
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+            script: install.sh
+            artifact_name: go2web-linux-x64
+            executable: go2web
+          - target: win-x64
+            os: windows-latest
+            script: install.ps1
+            artifact_name: go2web-win-x64
+            executable: go2web.exe
+          - target: osx-x64
+            os: macos-latest
+            script: install.sh
+            artifact_name: go2web-osx-x64
+            executable: go2web
+          - target: osx-arm64
+            os: macos-14
+            script: install.sh
+            artifact_name: go2web-osx-arm64
+            executable: go2web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+          cache: true
+          cache-dependency-path: '**/go2web.csproj'
+
+      - name: Install dependencies (Linux Native AOT)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish Native AOT
+        run: dotnet publish -c Release -r ${{ matrix.target }} -p:Version=${{ needs.prepare.outputs.version }} -p:AssemblyInformationalVersion=${{ needs.prepare.outputs.tag }}
+
+      - name: Prepare Artifacts
+        shell: bash
+        run: |
+          mkdir -p staging
+          cp bin/Release/net10.0/${{ matrix.target }}/publish/${{ matrix.executable }} staging/
+          cp installers/${{ matrix.script }} staging/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: staging/*
+
+  release:
+    name: Create Release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Zip Artifacts
+        run: |
+          mkdir -p release_assets
+          cd artifacts
+          for dir in */; do
+            if [ -d "$dir" ]; then
+              base=$(basename "$dir")
+              cd "$dir"
+              zip -r "../../release_assets/${base}.zip" ./*
+              cd ..
+            fi
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Release ${{ needs.prepare.outputs.tag }}
+          files: release_assets/*.zip
+          generate_release_notes: true

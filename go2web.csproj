@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>go2web</AssemblyName>
     <RootNamespace>go2web</RootNamespace>
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>

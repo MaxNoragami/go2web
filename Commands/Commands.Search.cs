@@ -1,5 +1,6 @@
 using ConsoleAppFramework;
 using Spectre.Console;
+using go2web.Configuration;
 
 namespace go2web.Commands;
 
@@ -13,8 +14,12 @@ public partial class Commands
     public async Task Search(
         [Argument] string searchTerm,
         bool fullHeaders = false,
-        int redirects = 5)
+        int? redirects = null)
     {
-        AnsiConsole.MarkupLine($"[green]Searching for:[/] {searchTerm}");
+        var config = ConfigLoader.Load();
+        int maxRedirects = redirects ?? config.MaxRedirects;
+        fullHeaders = fullHeaders || config.AlwaysShowHeaders;
+
+        AnsiConsole.MarkupLine($"[green]Searching for:[/] {searchTerm} (max redirects: {maxRedirects})");
     }
 }

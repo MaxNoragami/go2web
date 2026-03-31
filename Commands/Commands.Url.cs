@@ -1,6 +1,7 @@
 using ConsoleAppFramework;
 using Spectre.Console;
 using go2web.Http;
+using go2web.Configuration;
 
 namespace go2web.Commands;
 
@@ -14,7 +15,7 @@ public partial class Commands
     public async Task Url(
         [Argument] string url,
         bool fullHeaders = false,
-        int redirects = 5)
+        int? redirects = null)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
@@ -28,12 +29,16 @@ public partial class Commands
             return;
         }
 
+        var config = ConfigLoader.Load();
+        int maxRedirects = redirects ?? config.MaxRedirects;
+        fullHeaders = fullHeaders || config.AlwaysShowHeaders;
+
         AnsiConsole.MarkupLine($"[dim]Fetching {uri}...[/]");
 
         try
         {
             var client = new SocketHttpClient();
-            var response = await client.GetAsync(uri, redirects, (statusCode, redirectUri) =>
+            var response = await client.GetAsync(uri, maxRedirects, (statusCode, redirectUri) =>
             {
                 AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");
             });
