@@ -74,7 +74,7 @@ public partial class Commands
             if (accept == AcceptType.Html)
             {
                 var renderer = new HtmlRenderer();
-                var renderables = renderer.Render(response.BodyString);
+                var renderables = renderer.Render(response.BodyString, uri);
                 foreach (var r in renderables)
                 {
                     AnsiConsole.Write(r);

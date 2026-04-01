@@ -21,7 +21,7 @@ public class HtmlRenderer
         "FOOTER", "MAIN", "SECTION", "ARTICLE", "ASIDE", "NAV", "BODY", "HR"
     };
 
-    public IEnumerable<IRenderable> Render(string html)
+    public IEnumerable<IRenderable> Render(string html, Uri baseUri)
     {
         var parser = new HtmlParser();
         using var document = parser.ParseDocument(html);
@@ -45,11 +45,11 @@ public class HtmlRenderer
             if (node is IElement element && element.TagName.Equals("TABLE", StringComparison.OrdinalIgnoreCase))
             {
                 FlushText();
-                renderables.Add(ParseTable(element));
+                renderables.Add(ParseTable(element, baseUri));
                 return;
             }
 
-            RenderNodeToBuilder(node, sb, preserveWhitespace, WalkNode);
+            RenderNodeToBuilder(node, sb, preserveWhitespace, baseUri, WalkNode);
         }
 
         if (document.Body != null)
@@ -62,7 +62,21 @@ public class HtmlRenderer
         return renderables;
     }
 
-    private Table ParseTable(IElement tableElement)
+    private string ResolveUrl(string url, Uri baseUri)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        try
+        {
+            if (Uri.TryCreate(baseUri, url, out var resolvedUri))
+            {
+                return resolvedUri.AbsoluteUri;
+            }
+        }
+        catch { }
+        return url;
+    }
+
+    private Table ParseTable(IElement tableElement, Uri baseUri)
     {
         var table = new Table().Border(TableBorder.Rounded);
 
@@ -74,7 +88,7 @@ public class HtmlRenderer
         {
             foreach (var th in headerCells)
             {
-                table.AddColumn(new TableColumn(new Markup(RenderNodeToString(th, false).Trim())));
+                table.AddColumn(new TableColumn(new Markup(RenderNodeToString(th, false, baseUri).Trim())));
             }
         }
 
@@ -104,7 +118,7 @@ public class HtmlRenderer
             var rowData = new List<IRenderable>();
             foreach (var td in cells)
             {
-                var cellText = RenderNodeToString(td, false).Trim();
+                var cellText = RenderNodeToString(td, false, baseUri).Trim();
                 if (string.IsNullOrEmpty(cellText)) cellText = " ";
                 rowData.Add(new Markup(cellText));
             }
@@ -121,7 +135,7 @@ public class HtmlRenderer
         return table;
     }
 
-    private string RenderNodeToString(INode node, bool preserveWhitespace)
+    private string RenderNodeToString(INode node, bool preserveWhitespace, Uri baseUri)
     {
         var tempSb = new StringBuilder();
         void Walk(INode n, bool pw)
@@ -131,13 +145,13 @@ public class HtmlRenderer
                 tempSb.Append(Markup.Escape(n.TextContent));
                 return;
             }
-            RenderNodeToBuilder(n, tempSb, pw, Walk);
+            RenderNodeToBuilder(n, tempSb, pw, baseUri, Walk);
         }
         Walk(node, preserveWhitespace);
         return tempSb.ToString();
     }
 
-    private void RenderNodeToBuilder(INode node, StringBuilder sb, bool preserveWhitespace, Action<INode, bool> walkChildren)
+    private void RenderNodeToBuilder(INode node, StringBuilder sb, bool preserveWhitespace, Uri baseUri, Action<INode, bool> walkChildren)
     {
         if (node is IText textNode)
         {
@@ -178,10 +192,23 @@ public class HtmlRenderer
                 sb.Append($"[{formatStyle}]");
             }
 
-            string? href = tagName.Equals("A", StringComparison.OrdinalIgnoreCase) ? element.GetAttribute("href") : null;
-            if (href != null && href.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (tagName == "IMG")
             {
-                sb.Append($"[link={Markup.Escape(href)}]");
+                string? src = element.GetAttribute("src");
+                string? alt = element.GetAttribute("alt");
+                if (!string.IsNullOrWhiteSpace(src))
+                {
+                    string altText = string.IsNullOrWhiteSpace(alt) ? "Image" : alt.Trim();
+                    string resolvedSrc = ResolveUrl(src, baseUri);
+                    sb.Append($"\n[link={Markup.Escape(resolvedSrc)}]🖼️ {Markup.Escape(altText)}[/]\n");
+                }
+            }
+
+            string? href = tagName.Equals("A", StringComparison.OrdinalIgnoreCase) ? element.GetAttribute("href") : null;
+            if (!string.IsNullOrWhiteSpace(href))
+            {
+                string resolvedHref = ResolveUrl(href, baseUri);
+                sb.Append($"[link={Markup.Escape(resolvedHref)}]");
             }
 
             foreach (var child in element.ChildNodes)
@@ -189,7 +216,7 @@ public class HtmlRenderer
                 walkChildren(child, preserveWhitespace || isPre);
             }
 
-            if (href != null && href.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(href))
             {
                 sb.Append("[/]");
             }
