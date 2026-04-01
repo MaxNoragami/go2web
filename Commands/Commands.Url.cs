@@ -70,7 +70,16 @@ public partial class Commands
                 AnsiConsole.WriteLine();
             }
             
-            Console.WriteLine(response.BodyString);
+            if (accept == AcceptType.Html)
+            {
+                var renderer = new go2web.Rendering.HtmlRenderer();
+                string formatted = renderer.Render(response.BodyString);
+                AnsiConsole.MarkupLine(formatted);
+            }
+            else
+            {
+                Console.WriteLine(response.BodyString);
+            }
         }
         catch (Exception ex)
         {
