@@ -49,7 +49,7 @@ public partial class Commands
 
         try
         {
-            var client = new SocketHttpClient();
+            IHttpClient client = new CachingHttpClientDecorator(new SocketHttpClient());
             var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, lang, (statusCode, redirectUri) =>
             {
                 AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");

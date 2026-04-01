@@ -4,45 +4,15 @@ using System.Text;
 
 namespace go2web.Http;
 
-public class SocketHttpClient
+public class SocketHttpClient : IHttpClient
 {
-    private readonly HttpCache _cache = new();
-
-    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", string acceptLanguage = "*", Action<int, Uri>? onRedirect = null)
+    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", string acceptLanguage = "*", Action<int, Uri>? onRedirect = null, string? ifNoneMatch = null, string? ifModifiedSince = null)
     {
         Uri currentUri = uri;
         int redirectsCount = 0;
 
         while (true)
         {
-            var cached = _cache.Get(currentUri, acceptHeader, acceptLanguage);
-            bool isCacheExpired = true;
-            bool sendConditional = false;
-            
-            if (cached != null)
-            {
-                if (cached.ExpiresAt.HasValue && cached.ExpiresAt.Value > DateTimeOffset.UtcNow)
-                {
-                    isCacheExpired = false;
-                }
-                else if (!string.IsNullOrEmpty(cached.ETag) || !string.IsNullOrEmpty(cached.LastModified))
-                {
-                    sendConditional = true;
-                }
-                
-                if (!isCacheExpired && !sendConditional) 
-                {
-                    return new HttpResponse
-                    {
-                        HttpVersion = "HTTP/1.1",
-                        StatusCode = cached.StatusCode,
-                        ReasonPhrase = "OK (Cached)",
-                        Headers = cached.ResponseHeaders,
-                        BodyBytes = Convert.FromBase64String(cached.BodyBase64)
-                    };
-                }
-            }
-
             bool isHttps = currentUri.Scheme == "https";
             if (currentUri.Scheme != "http" && currentUri.Scheme != "https")
             {
@@ -83,13 +53,10 @@ public class SocketHttpClient
             requestBuilder.Append($"Accept: {acceptHeader}\r\n");
             requestBuilder.Append($"Accept-Language: {acceptLanguage}\r\n");
 
-            if (sendConditional && cached != null)
-            {
-                if (!string.IsNullOrEmpty(cached.ETag))
-                    requestBuilder.Append($"If-None-Match: {cached.ETag}\r\n");
-                if (!string.IsNullOrEmpty(cached.LastModified))
-                    requestBuilder.Append($"If-Modified-Since: {cached.LastModified}\r\n");
-            }
+            if (!string.IsNullOrEmpty(ifNoneMatch))
+                requestBuilder.Append($"If-None-Match: {ifNoneMatch}\r\n");
+            if (!string.IsNullOrEmpty(ifModifiedSince))
+                requestBuilder.Append($"If-Modified-Since: {ifModifiedSince}\r\n");
 
             requestBuilder.Append("\r\n"); // End of headers
 
@@ -98,27 +65,6 @@ public class SocketHttpClient
 
             // Read and parse the response
             var response = await ParseResponseAsync(stream);
-
-            if (sendConditional && response.StatusCode == 304 && cached != null)
-            {
-                _cache.UpdateExpiration(currentUri, acceptHeader, acceptLanguage, response);
-                
-                var mergedHeaders = new Dictionary<string, string>(cached.ResponseHeaders, StringComparer.OrdinalIgnoreCase);
-                foreach(var h in response.Headers) mergedHeaders[h.Key] = h.Value;
-
-                return new HttpResponse
-                {
-                    HttpVersion = "HTTP/1.1",
-                    StatusCode = cached.StatusCode,
-                    ReasonPhrase = "OK (Cached Revalidated)",
-                    Headers = mergedHeaders,
-                    BodyBytes = Convert.FromBase64String(cached.BodyBase64)
-                };
-            }
-            else if (response.StatusCode == 200)
-            {
-                _cache.Put(currentUri, acceptHeader, acceptLanguage, response);
-            }
 
             if (response.StatusCode == 301 || response.StatusCode == 302 || 
                 response.StatusCode == 303 || response.StatusCode == 307 || 
