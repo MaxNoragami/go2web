@@ -42,7 +42,8 @@ public partial class Commands
         string acceptHeaderValue = accept switch
         {
             AcceptType.Json => "application/json",
-            AcceptType.Html => "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            AcceptType.Plain => "text/plain",
+            AcceptType.Html => "text/html",
             _ => "text/html"
         };
 
@@ -63,7 +64,7 @@ public partial class Commands
                 table.AddColumn("Value");
                 foreach (var header in response.Headers)
                 {
-                    table.AddRow(new Markup($"[cyan]{header.Key}[/]"), new Markup(header.Value));
+                    table.AddRow(new Markup($"[cyan]{Markup.Escape(header.Key)}[/]"), new Text(header.Value));
                 }
                 AnsiConsole.Write(table);
                 AnsiConsole.WriteLine();
