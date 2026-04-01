@@ -11,11 +11,15 @@ public partial class Commands
     /// <param name="url">The URL to fetch.</param>
     /// <param name="fullHeaders">-f, Show response headers.</param>
     /// <param name="redirects">-r, Number of redirects to follow.</param>
+    /// <param name="accept">-a, Set the Accept header for content negotiation.</param>
+    /// <param name="lang">-l, Set the Accept-Language header (e.g. en, fr, ja).</param>
     [Command("-u")]
     public async Task Url(
         [Argument] string url,
         bool fullHeaders = false,
-        int? redirects = null)
+        int? redirects = null,
+        AcceptType accept = AcceptType.Html,
+        string lang = "*")
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
@@ -35,10 +39,18 @@ public partial class Commands
 
         AnsiConsole.MarkupLine($"[dim]Fetching {uri}...[/]");
 
+        string acceptHeaderValue = accept switch
+        {
+            AcceptType.Json => "application/json",
+            AcceptType.Plain => "text/plain",
+            AcceptType.Html => "text/html",
+            _ => "text/html"
+        };
+
         try
         {
             var client = new SocketHttpClient();
-            var response = await client.GetAsync(uri, maxRedirects, (statusCode, redirectUri) =>
+            var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, lang, (statusCode, redirectUri) =>
             {
                 AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");
             });
@@ -52,7 +64,7 @@ public partial class Commands
                 table.AddColumn("Value");
                 foreach (var header in response.Headers)
                 {
-                    table.AddRow(new Markup($"[cyan]{header.Key}[/]"), new Markup(header.Value));
+                    table.AddRow(new Markup($"[cyan]{Markup.Escape(header.Key)}[/]"), new Text(header.Value));
                 }
                 AnsiConsole.Write(table);
                 AnsiConsole.WriteLine();
