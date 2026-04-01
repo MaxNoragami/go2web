@@ -80,21 +80,47 @@ public class HtmlRenderer
     {
         var table = new Table().Border(TableBorder.Rounded);
 
-
         var thead = tableElement.QuerySelector("thead");
         var headerCells = thead?.QuerySelectorAll("th, td") ?? tableElement.QuerySelectorAll("tr").FirstOrDefault()?.QuerySelectorAll("th, td");
         
-        if (headerCells != null)
-        {
-            foreach (var th in headerCells)
-            {
-                table.AddColumn(new TableColumn(new Markup(RenderNodeToString(th, false, baseUri).Trim())));
-            }
-        }
-
-        // Find rows
         var tbody = tableElement.QuerySelector("tbody") ?? tableElement;
         var rows = tbody.QuerySelectorAll("tr");
+
+        int maxColumns = headerCells?.Length ?? 0;
+        foreach (var tr in rows)
+        {
+            maxColumns = Math.Max(maxColumns, tr.QuerySelectorAll("td, th").Length);
+        }
+
+        if (maxColumns == 0)
+        {
+            table.AddColumn("");
+            return table;
+        }
+
+        if (headerCells != null)
+        {
+            for (int i = 0; i < maxColumns; i++)
+            {
+                if (i < headerCells.Length)
+                {
+                    var text = RenderNodeToString(headerCells[i], false, baseUri).Trim();
+                    if (string.IsNullOrEmpty(text)) text = " ";
+                    table.AddColumn(new TableColumn(new Markup(text)));
+                }
+                else
+                {
+                    table.AddColumn("");
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < maxColumns; i++)
+            {
+                table.AddColumn("");
+            }
+        }
 
         bool isFirstRow = true;
         foreach (var tr in rows)
@@ -109,12 +135,6 @@ public class HtmlRenderer
             var cells = tr.QuerySelectorAll("td, th");
             if (cells.Length == 0) continue;
 
-            // Ensure table has enough columns
-            while (table.Columns.Count < cells.Length)
-            {
-                table.AddColumn("");
-            }
-
             var rowData = new List<IRenderable>();
             foreach (var td in cells)
             {
@@ -124,7 +144,7 @@ public class HtmlRenderer
             }
             
             // Pad if necessary
-            while (rowData.Count < table.Columns.Count)
+            while (rowData.Count < maxColumns)
             {
                 rowData.Add(new Markup(" "));
             }
