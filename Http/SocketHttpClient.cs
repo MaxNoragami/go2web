@@ -4,9 +4,9 @@ using System.Text;
 
 namespace go2web.Http;
 
-public class SocketHttpClient
+public class SocketHttpClient : IHttpClient
 {
-    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", string acceptLanguage = "*", Action<int, Uri>? onRedirect = null)
+    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", string acceptLanguage = "*", Action<int, Uri>? onRedirect = null, string? ifNoneMatch = null, string? ifModifiedSince = null)
     {
         Uri currentUri = uri;
         int redirectsCount = 0;
@@ -52,6 +52,12 @@ public class SocketHttpClient
             requestBuilder.Append("User-Agent: go2web-client/1.0\r\n");
             requestBuilder.Append($"Accept: {acceptHeader}\r\n");
             requestBuilder.Append($"Accept-Language: {acceptLanguage}\r\n");
+
+            if (!string.IsNullOrEmpty(ifNoneMatch))
+                requestBuilder.Append($"If-None-Match: {ifNoneMatch}\r\n");
+            if (!string.IsNullOrEmpty(ifModifiedSince))
+                requestBuilder.Append($"If-Modified-Since: {ifModifiedSince}\r\n");
+
             requestBuilder.Append("\r\n"); // End of headers
 
             byte[] requestBytes = Encoding.ASCII.GetBytes(requestBuilder.ToString());
