@@ -71,7 +71,34 @@ public partial class Commands
                 AnsiConsole.WriteLine();
             }
             
-            if (accept == AcceptType.Html)
+            var contentType = response.GetHeader("Content-Type") ?? "text/html";
+            bool isJsonContent = contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase);
+            bool isHtmlContent = contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase);
+
+            if (accept == AcceptType.Json && !isJsonContent)
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning:[/] You requested JSON, but the server returned a different content type.");
+                accept = isHtmlContent ? AcceptType.Html : AcceptType.Plain;
+            }
+            else if (accept == AcceptType.Html && !isHtmlContent)
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning:[/] You requested HTML, but the server returned a different content type.");
+                accept = isJsonContent ? AcceptType.Json : AcceptType.Plain;
+            }
+
+            if (isJsonContent && accept != AcceptType.Plain)
+            {
+                try
+                {
+                    AnsiConsole.Write(new Spectre.Console.Json.JsonText(response.BodyString));
+                    AnsiConsole.WriteLine();
+                }
+                catch
+                {
+                    Console.WriteLine(response.BodyString);
+                }
+            }
+            else if ((isHtmlContent && accept != AcceptType.Plain) || accept == AcceptType.Html)
             {
                 var renderer = new HtmlRenderer();
                 var renderables = renderer.Render(response.BodyString, uri);
