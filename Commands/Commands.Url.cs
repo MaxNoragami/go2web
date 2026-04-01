@@ -19,8 +19,8 @@ public partial class Commands
         [Argument] string url,
         bool fullHeaders = false,
         int? redirects = null,
-        AcceptType accept = AcceptType.Html,
-        string lang = "*")
+        AcceptType? accept = null,
+        string? lang = null)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
@@ -37,10 +37,14 @@ public partial class Commands
         var config = ConfigLoader.Load();
         int maxRedirects = redirects ?? config.MaxRedirects;
         fullHeaders = fullHeaders || config.AlwaysShowHeaders;
+        
+        string activeLang = lang ?? config.DefaultLanguage ?? "*";
+        
+        AcceptType activeAccept = accept ?? (Enum.TryParse<AcceptType>(config.DefaultAccept, true, out var parsedAccept) ? parsedAccept : AcceptType.Html);
 
         AnsiConsole.MarkupLine($"[dim]Fetching {uri}...[/]");
 
-        string acceptHeaderValue = accept switch
+        string acceptHeaderValue = activeAccept switch
         {
             AcceptType.Json => "application/json",
             AcceptType.Plain => "text/plain",
@@ -51,7 +55,7 @@ public partial class Commands
         try
         {
             IHttpClient client = new CachingHttpClientDecorator(new SocketHttpClient());
-            var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, lang, (statusCode, redirectUri) =>
+            var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, activeLang, (statusCode, redirectUri) =>
             {
                 AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");
             });
@@ -75,18 +79,18 @@ public partial class Commands
             bool isJsonContent = contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase);
             bool isHtmlContent = contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase);
 
-            if (accept == AcceptType.Json && !isJsonContent)
+            if (activeAccept == AcceptType.Json && !isJsonContent)
             {
                 AnsiConsole.MarkupLine("[yellow]Warning:[/] You requested JSON, but the server returned a different content type.");
-                accept = isHtmlContent ? AcceptType.Html : AcceptType.Plain;
+                activeAccept = isHtmlContent ? AcceptType.Html : AcceptType.Plain;
             }
-            else if (accept == AcceptType.Html && !isHtmlContent)
+            else if (activeAccept == AcceptType.Html && !isHtmlContent)
             {
                 AnsiConsole.MarkupLine("[yellow]Warning:[/] You requested HTML, but the server returned a different content type.");
-                accept = isJsonContent ? AcceptType.Json : AcceptType.Plain;
+                activeAccept = isJsonContent ? AcceptType.Json : AcceptType.Plain;
             }
 
-            if (isJsonContent && accept != AcceptType.Plain)
+            if (isJsonContent && activeAccept != AcceptType.Plain)
             {
                 try
                 {
@@ -98,7 +102,7 @@ public partial class Commands
                     Console.WriteLine(response.BodyString);
                 }
             }
-            else if ((isHtmlContent && accept != AcceptType.Plain) || accept == AcceptType.Html)
+            else if ((isHtmlContent && activeAccept != AcceptType.Plain) || activeAccept == AcceptType.Html)
             {
                 var renderer = new HtmlRenderer();
                 var renderables = renderer.Render(response.BodyString, uri);
