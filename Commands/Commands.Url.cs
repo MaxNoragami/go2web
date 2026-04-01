@@ -2,6 +2,7 @@ using ConsoleAppFramework;
 using Spectre.Console;
 using go2web.Http;
 using go2web.Configuration;
+using go2web.Rendering;
 
 namespace go2web.Commands;
 
@@ -72,9 +73,16 @@ public partial class Commands
             
             if (accept == AcceptType.Html)
             {
-                var renderer = new go2web.Rendering.HtmlRenderer();
-                string formatted = renderer.Render(response.BodyString);
-                AnsiConsole.MarkupLine(formatted);
+                var renderer = new HtmlRenderer();
+                var renderables = renderer.Render(response.BodyString);
+                foreach (var r in renderables)
+                {
+                    AnsiConsole.Write(r);
+                    if (r is Table)
+                    {
+                        AnsiConsole.WriteLine();
+                    }
+                }
             }
             else
             {
