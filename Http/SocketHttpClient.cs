@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Net;
 using System.Net.Security;
 using System.Text;
 
@@ -29,10 +30,14 @@ public class SocketHttpClient : IHttpClient
 
             int port = currentUri.Port > 0 ? currentUri.Port : (isHttps ? 443 : 80);
 
-            using var tcpClient = new TcpClient();
-            await tcpClient.ConnectAsync(currentUri.Host, port);
+            var hostEntry = await Dns.GetHostEntryAsync(currentUri.Host);
+            var ipAddress = hostEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) 
+                            ?? hostEntry.AddressList[0];
 
-            using var networkStream = tcpClient.GetStream();
+            using var socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            await socket.ConnectAsync(ipAddress, port);
+
+            using var networkStream = new NetworkStream(socket, ownsSocket: true);
             Stream stream = networkStream;
 
             if (isHttps)
