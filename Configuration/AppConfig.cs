@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using go2web.Commands;
+using go2web.Commands.Enums;
+using Spectre.Console;
 
 namespace go2web.Configuration;
 
@@ -56,7 +57,7 @@ public static class ConfigLoader
         }
         catch (Exception ex)
         {
-            Spectre.Console.AnsiConsole.MarkupLine($"[yellow]Warning:[/] Could not load config file at {ConfigFilePath}. Using defaults. Error: {ex.Message}");
+            AnsiConsole.MarkupLine($"[yellow]Warning:[/] Could not load config file at {ConfigFilePath}. Using defaults. Error: {ex.Message}");
             return new AppConfig();
         }
     }

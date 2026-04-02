@@ -1,9 +1,9 @@
-using AngleSharp.Html.Parser;
 using ConsoleAppFramework;
+using go2web.Commands.Enums;
 using go2web.Configuration;
 using go2web.Http;
+using go2web.Search;
 using Spectre.Console;
-using System.Text.RegularExpressions;
 
 namespace go2web.Commands;
 
@@ -36,7 +36,7 @@ public partial class Commands
         string activeLang = lang ?? config.DefaultLanguage ?? "*";
         SearchEngineType activeEngine = engine ?? config.DefaultSearchEngine;
 
-        var searchEngine = go2web.Search.SearchEngineFactory.Create(activeEngine);
+        var searchEngine = SearchEngineFactory.Create(activeEngine);
 
         AnsiConsole.MarkupLine($"[dim]Searching {searchEngine.Name} for:[/] {Markup.Escape(query)}\n");
 

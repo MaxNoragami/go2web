@@ -76,17 +76,4 @@ public class CachingHttpClientDecorator : IHttpClient
 
         return response;
     }
-
-    public async Task<HttpResponse> PostAsync(
-        Uri uri,
-        string body,
-        string contentType = "application/x-www-form-urlencoded",
-        int maxRedirects = 5,
-        string acceptHeader = "text/html",
-        string acceptLanguage = "*",
-        Action<int, Uri>? onRedirect = null)
-    {
-        // Don't cache POST requests, just pass them through
-        return await _innerClient.PostAsync(uri, body, contentType, maxRedirects, acceptHeader, acceptLanguage, onRedirect);
-    }
 }

@@ -48,6 +48,22 @@ public class DuckDuckGoSearchEngine : ISearchEngine
                             url = location;
                         }
                     }
+                    else if (redirectResponse.StatusCode == 200)
+                    {
+                        var match = Regex.Match(redirectResponse.BodyString, @"window\.parent\.location\.replace\(""([^""]+)""\)");
+                        if (match.Success)
+                        {
+                            url = match.Groups[1].Value;
+                        }
+                        else
+                        {
+                            match = Regex.Match(redirectResponse.BodyString, @"URL=([^""'>\s]+)");
+                            if (match.Success)
+                            {
+                                url = match.Groups[1].Value;
+                            }
+                        }
+                    }
                 }
                 catch { }
             }

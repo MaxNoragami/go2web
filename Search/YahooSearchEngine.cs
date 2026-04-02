@@ -19,7 +19,7 @@ public class YahooSearchEngine : ISearchEngine
         var parser = new HtmlParser();
         using var document = parser.ParseDocument(html);
 
-        // Yahoo results are typically within .compTitle a and .compText
+        // Yahoo results within .compTitle a and .compText
         var resultContainers = document.QuerySelectorAll(".algo-sr:not(.ad), .algo").Take(10).ToList();
         
         // Fallback if structure is slightly different
@@ -37,7 +37,8 @@ public class YahooSearchEngine : ISearchEngine
 
             if (linkNode == null) continue;
 
-            string title = Regex.Replace(linkNode.TextContent, @"\s+", " ").Trim();
+            var titleNode = linkNode.QuerySelector("h3.title, .title, h3") ?? container.QuerySelector("h3.title") ?? linkNode;
+            string title = Regex.Replace(titleNode.TextContent, @"\s+", " ").Trim();
             string url = linkNode.GetAttribute("href") ?? "";
             
             if (url.Contains("/RU="))
@@ -65,15 +66,17 @@ public class YahooSearchEngine : ISearchEngine
             if (results.Count >= 10) break;
         }
         
-        // Final fallback if container selectors completely miss (simple extraction)
+        // Fallback if container selectors completely miss
         if (results.Count == 0)
         {
             var links = document.QuerySelectorAll(".compTitle a").Take(10).ToList();
             var snippets = document.QuerySelectorAll(".compText").Take(10).ToList();
             for (int i = 0; i < links.Count; i++)
             {
-                string title = Regex.Replace(links[i].TextContent, @"\s+", " ").Trim();
-                string url = links[i].GetAttribute("href") ?? "";
+                var linkNode = links[i];
+                var titleNode = linkNode.QuerySelector("h3.title, .title, h3") ?? linkNode;
+                string title = Regex.Replace(titleNode.TextContent, @"\s+", " ").Trim();
+                string url = linkNode.GetAttribute("href") ?? "";
                 
                 if (url.Contains("/RU="))
                 {

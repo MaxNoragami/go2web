@@ -6,7 +6,15 @@ namespace go2web.Http;
 
 public class SocketHttpClient : IHttpClient
 {
-    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", string acceptLanguage = "*", Action<int, Uri>? onRedirect = null, string? ifNoneMatch = null, string? ifModifiedSince = null)
+    public async Task<HttpResponse> GetAsync(
+        Uri uri, 
+        int maxRedirects = 5, 
+        string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", 
+        string acceptLanguage = "*", 
+        Action<int, 
+        Uri>? onRedirect = null, 
+        string? ifNoneMatch = null, 
+        string? ifModifiedSince = null)
     {
         Uri currentUri = uri;
         int redirectsCount = 0;
@@ -64,86 +72,6 @@ public class SocketHttpClient : IHttpClient
             await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
 
             // Read and parse the response
-            var response = await ParseResponseAsync(stream);
-
-            if (response.StatusCode == 301 || response.StatusCode == 302 || 
-                response.StatusCode == 303 || response.StatusCode == 307 || 
-                response.StatusCode == 308)
-            {
-                if (redirectsCount >= maxRedirects)
-                {
-                    throw new Exception($"Too many redirects (exceeded maximum of {maxRedirects})");
-                }
-
-                var location = response.GetHeader("Location");
-                if (!string.IsNullOrEmpty(location))
-                {
-                    currentUri = new Uri(currentUri, location);
-                    redirectsCount++;
-                    onRedirect?.Invoke(response.StatusCode, currentUri);
-                    continue;
-                }
-            }
-
-            return response;
-        }
-    }
-
-    public async Task<HttpResponse> PostAsync(Uri uri, string body, string contentType = "application/x-www-form-urlencoded", int maxRedirects = 5, string acceptHeader = "text/html", string acceptLanguage = "*", Action<int, Uri>? onRedirect = null)
-    {
-        Uri currentUri = uri;
-        int redirectsCount = 0;
-
-        while (true)
-        {
-            bool isHttps = currentUri.Scheme == "https";
-            if (currentUri.Scheme != "http" && currentUri.Scheme != "https")
-            {
-                throw new NotSupportedException($"Only HTTP and HTTPS schemes are supported currently. Provided: {currentUri.Scheme}");
-            }
-
-            int port = currentUri.Port > 0 ? currentUri.Port : (isHttps ? 443 : 80);
-
-            using var tcpClient = new TcpClient();
-            await tcpClient.ConnectAsync(currentUri.Host, port);
-
-            using var networkStream = tcpClient.GetStream();
-            Stream stream = networkStream;
-
-            if (isHttps)
-            {
-                var sslStream = new SslStream(
-                    networkStream, 
-                    false, 
-                    new RemoteCertificateValidationCallback((sender, certificate, chain, sslPolicyErrors) => true)
-                );
-                await sslStream.AuthenticateAsClientAsync(currentUri.Host);
-                stream = sslStream;
-            }
-
-            var pathAndQuery = currentUri.PathAndQuery;
-            if (string.IsNullOrEmpty(pathAndQuery))
-            {
-                pathAndQuery = "/";
-            }
-
-            byte[] bodyBytes = Encoding.UTF8.GetBytes(body);
-
-            var requestBuilder = new StringBuilder();
-            requestBuilder.Append($"POST {pathAndQuery} HTTP/1.1\r\n");
-            requestBuilder.Append($"Host: {currentUri.Host}\r\n");
-            requestBuilder.Append("Connection: close\r\n");
-            requestBuilder.Append("User-Agent: go2web-client/1.0\r\n");
-            requestBuilder.Append($"Accept: {acceptHeader}\r\n");
-            requestBuilder.Append($"Accept-Language: {acceptLanguage}\r\n");
-            requestBuilder.Append($"Content-Type: {contentType}\r\n");
-            requestBuilder.Append($"Content-Length: {bodyBytes.Length}\r\n");
-            requestBuilder.Append("\r\n");
-
-            byte[] headerBytes = Encoding.ASCII.GetBytes(requestBuilder.ToString());
-            await stream.WriteAsync(headerBytes, 0, headerBytes.Length);
-            await stream.WriteAsync(bodyBytes, 0, bodyBytes.Length);
-
             var response = await ParseResponseAsync(stream);
 
             if (response.StatusCode == 301 || response.StatusCode == 302 || 

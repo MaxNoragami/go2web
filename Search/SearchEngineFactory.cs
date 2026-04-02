@@ -1,4 +1,4 @@
-using go2web.Commands;
+using go2web.Commands.Enums;
 
 namespace go2web.Search;
 
