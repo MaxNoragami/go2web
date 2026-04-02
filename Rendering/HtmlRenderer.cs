@@ -32,7 +32,13 @@ public class HtmlRenderer
         void FlushText()
         {
             string text = sb.ToString();
-            text = Regex.Replace(text, @"\n{3,}", "\n\n").Trim();
+            // Replace multiple line breaks with a single clean paragraph break.
+            text = Regex.Replace(text, @"(\r?\n\s*){2,}", "\n\n");
+            // Also clean up leading spaces at the start of a line
+            text = Regex.Replace(text, @"\n[ \t]+", "\n");
+            
+            text = text.Trim();
+            
             if (!string.IsNullOrEmpty(text))
             {
                 renderables.Add(new Markup(text + "\n"));
@@ -80,21 +86,47 @@ public class HtmlRenderer
     {
         var table = new Table().Border(TableBorder.Rounded);
 
-
         var thead = tableElement.QuerySelector("thead");
         var headerCells = thead?.QuerySelectorAll("th, td") ?? tableElement.QuerySelectorAll("tr").FirstOrDefault()?.QuerySelectorAll("th, td");
         
-        if (headerCells != null)
-        {
-            foreach (var th in headerCells)
-            {
-                table.AddColumn(new TableColumn(new Markup(RenderNodeToString(th, false, baseUri).Trim())));
-            }
-        }
-
-        // Find rows
         var tbody = tableElement.QuerySelector("tbody") ?? tableElement;
         var rows = tbody.QuerySelectorAll("tr");
+
+        int maxColumns = headerCells?.Length ?? 0;
+        foreach (var tr in rows)
+        {
+            maxColumns = Math.Max(maxColumns, tr.QuerySelectorAll("td, th").Length);
+        }
+
+        if (maxColumns == 0)
+        {
+            table.AddColumn("");
+            return table;
+        }
+
+        if (headerCells != null)
+        {
+            for (int i = 0; i < maxColumns; i++)
+            {
+                if (i < headerCells.Length)
+                {
+                    var text = RenderNodeToString(headerCells[i], false, baseUri).Trim();
+                    if (string.IsNullOrEmpty(text)) text = " ";
+                    table.AddColumn(new TableColumn(new Markup(text)));
+                }
+                else
+                {
+                    table.AddColumn("");
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < maxColumns; i++)
+            {
+                table.AddColumn("");
+            }
+        }
 
         bool isFirstRow = true;
         foreach (var tr in rows)
@@ -109,12 +141,6 @@ public class HtmlRenderer
             var cells = tr.QuerySelectorAll("td, th");
             if (cells.Length == 0) continue;
 
-            // Ensure table has enough columns
-            while (table.Columns.Count < cells.Length)
-            {
-                table.AddColumn("");
-            }
-
             var rowData = new List<IRenderable>();
             foreach (var td in cells)
             {
@@ -124,7 +150,7 @@ public class HtmlRenderer
             }
             
             // Pad if necessary
-            while (rowData.Count < table.Columns.Count)
+            while (rowData.Count < maxColumns)
             {
                 rowData.Add(new Markup(" "));
             }
@@ -181,10 +207,21 @@ public class HtmlRenderer
             bool isPre = tagName.Equals("PRE", StringComparison.OrdinalIgnoreCase);
             
             if (isBlock && tagName != "BODY") 
-                sb.AppendLine();
+            {
+                if (sb.Length > 0 && sb[^1] != '\n')
+                {
+                    sb.AppendLine();
+                }
+            }
 
             if (tagName == "LI")
-                sb.Append("• ");
+            {
+                // To avoid floating • on empty list items
+                if (element.TextContent?.Trim().Length > 0)
+                {
+                    sb.Append("• ");
+                }
+            }
 
             string? formatStyle = GetSpectreStyle(tagName);
             if (formatStyle != null) 
@@ -199,26 +236,85 @@ public class HtmlRenderer
                 if (!string.IsNullOrWhiteSpace(src))
                 {
                     string altText = string.IsNullOrWhiteSpace(alt) ? "Image" : alt.Trim();
+                    if (altText == "Image") {
+                        // Skip rendering completely blank/meaningless decorative images
+                        if (element.GetAttribute("role") == "presentation" || element.GetAttribute("aria-hidden") == "true" || string.IsNullOrWhiteSpace(alt))
+                        {
+                            return; 
+                        }
+                    }
                     string resolvedSrc = ResolveUrl(src, baseUri);
-                    sb.Append($"\n[link={Markup.Escape(resolvedSrc)}]🖼️ {Markup.Escape(altText)}[/]\n");
+                    // Add newline if we are not at the beginning of a line
+                    if (sb.Length > 0 && sb[^1] != '\n') sb.AppendLine();
+                    // Avoid appending images if they don't have alt text unless they have link wrappers
+                    if (altText != "Image" || element.ParentElement?.TagName == "A")
+                    {
+                        sb.Append($"[link={Markup.Escape(resolvedSrc)}]🖼️ {Markup.Escape(altText)}[/]\n");
+                    }
                 }
             }
 
             string? href = tagName.Equals("A", StringComparison.OrdinalIgnoreCase) ? element.GetAttribute("href") : null;
-            if (!string.IsNullOrWhiteSpace(href))
+            bool addedLink = false;
+            
+            // Only render links if they contain actual text content (prevents empty links taking up space)
+            string innerText = element.TextContent?.Trim() ?? "";
+            bool hasTextContent = !string.IsNullOrWhiteSpace(innerText);
+            
+            // Do not output empty link wrapper if it only wraps a decorative image that was skipped
+            bool hasValidImg = false;
+            var imgNode = element.QuerySelector("img");
+            if (imgNode != null)
             {
-                string resolvedHref = ResolveUrl(href, baseUri);
-                sb.Append($"[link={Markup.Escape(resolvedHref)}]");
+                string? alt = imgNode.GetAttribute("alt");
+                if (!string.IsNullOrWhiteSpace(alt) && alt != "Image")
+                {
+                    hasValidImg = true;
+                }
+                else if (imgNode.GetAttribute("role") != "presentation" && imgNode.GetAttribute("aria-hidden") != "true")
+                {
+                     hasValidImg = true;
+                }
             }
 
-            foreach (var child in element.ChildNodes)
+            if (hasTextContent || hasValidImg)
             {
-                walkChildren(child, preserveWhitespace || isPre);
-            }
+                if (!string.IsNullOrWhiteSpace(href))
+                {
+                    string resolvedHref = ResolveUrl(href, baseUri);
+                    // Don't render empty links that are just spaces
+                    if (!string.IsNullOrWhiteSpace(innerText) || hasValidImg)
+                    {
+                        // Clean inner text to prevent empty linked spaces
+                        if (!hasValidImg && string.IsNullOrWhiteSpace(innerText)) 
+                        {
+                            addedLink = false;
+                        } 
+                        else 
+                        {
+                            sb.Append($"[link={Markup.Escape(resolvedHref)}]");
+                            addedLink = true;
+                        }
+                    }
+                }
 
-            if (!string.IsNullOrWhiteSpace(href))
+                foreach (var child in element.ChildNodes)
+                {
+                    walkChildren(child, preserveWhitespace || isPre);
+                }
+
+                if (addedLink)
+                {
+                    sb.Append("[/]");
+                }
+            }
+            else
             {
-                sb.Append("[/]");
+                // Just walk children without wrapping in link
+                foreach (var child in element.ChildNodes)
+                {
+                    walkChildren(child, preserveWhitespace || isPre);
+                }
             }
 
             if (formatStyle != null) 
@@ -227,7 +323,12 @@ public class HtmlRenderer
             }
 
             if (isBlock && tagName != "BODY") 
-                sb.AppendLine();
+            {
+                if (sb.Length > 0 && sb[^1] != '\n')
+                {
+                    sb.AppendLine();
+                }
+            }
         }
     }
 

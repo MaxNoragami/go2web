@@ -1,4 +1,4 @@
-namespace go2web.Commands;
+namespace go2web.Commands.Enums;
 
 public enum AcceptType
 {

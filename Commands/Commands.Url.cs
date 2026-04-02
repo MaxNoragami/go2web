@@ -1,8 +1,10 @@
 using ConsoleAppFramework;
 using Spectre.Console;
+using Spectre.Console.Json;
 using go2web.Http;
 using go2web.Configuration;
 using go2web.Rendering;
+using go2web.Commands.Enums;
 
 namespace go2web.Commands;
 
@@ -94,7 +96,7 @@ public partial class Commands
             {
                 try
                 {
-                    AnsiConsole.Write(new Spectre.Console.Json.JsonText(response.BodyString));
+                    AnsiConsole.Write(new JsonText(response.BodyString));
                     AnsiConsole.WriteLine();
                 }
                 catch

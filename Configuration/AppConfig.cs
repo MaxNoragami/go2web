@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using go2web.Commands.Enums;
+using Spectre.Console;
 
 namespace go2web.Configuration;
 
@@ -9,6 +11,7 @@ public class AppConfig
     public bool AlwaysShowHeaders { get; init; } = false;
     public string DefaultAccept { get; init; } = "html";
     public string DefaultLanguage { get; init; } = "*";
+    public SearchEngineType DefaultSearchEngine { get; init; } = SearchEngineType.DuckDuckGo;
 }
 
 [JsonSerializable(typeof(AppConfig))]
@@ -54,7 +57,7 @@ public static class ConfigLoader
         }
         catch (Exception ex)
         {
-            Spectre.Console.AnsiConsole.MarkupLine($"[yellow]Warning:[/] Could not load config file at {ConfigFilePath}. Using defaults. Error: {ex.Message}");
+            AnsiConsole.MarkupLine($"[yellow]Warning:[/] Could not load config file at {ConfigFilePath}. Using defaults. Error: {ex.Message}");
             return new AppConfig();
         }
     }

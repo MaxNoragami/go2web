@@ -6,7 +6,15 @@ namespace go2web.Http;
 
 public class SocketHttpClient : IHttpClient
 {
-    public async Task<HttpResponse> GetAsync(Uri uri, int maxRedirects = 5, string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", string acceptLanguage = "*", Action<int, Uri>? onRedirect = null, string? ifNoneMatch = null, string? ifModifiedSince = null)
+    public async Task<HttpResponse> GetAsync(
+        Uri uri, 
+        int maxRedirects = 5, 
+        string acceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", 
+        string acceptLanguage = "*", 
+        Action<int, 
+        Uri>? onRedirect = null, 
+        string? ifNoneMatch = null, 
+        string? ifModifiedSince = null)
     {
         Uri currentUri = uri;
         int redirectsCount = 0;
