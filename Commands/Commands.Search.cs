@@ -82,7 +82,6 @@ public partial class Commands
                     if (selectedIndex >= 0 && selectedIndex < urls.Count)
                     {
                         string selectedUrl = urls[selectedIndex];
-                        AnsiConsole.MarkupLine($"\n[dim]Accessing {Markup.Escape(selectedUrl)}...[/]\n");
                         
                         await Url(selectedUrl, fullHeaders, maxRedirects, AcceptType.Html, activeLang);
                     }
