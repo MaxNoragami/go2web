@@ -15,12 +15,14 @@ public partial class Commands
     /// <param name="fullHeaders">-f, Show response headers.</param>
     /// <param name="redirects">-r, Number of redirects to follow.</param>
     /// <param name="lang">-l, Set the Accept-Language header (e.g. en, fr, ja).</param>
+    /// <param name="engine">-e, The search engine to use (DuckDuckGo, Yahoo, Brave).</param>
     [Command("-s")]
     public async Task Search(
         [Argument] string[] searchTerms,
         bool fullHeaders = false,
         int? redirects = null,
-        string? lang = null)
+        string? lang = null,
+        SearchEngineType? engine = null)
     {
         string query = string.Join(" ", searchTerms);
         if (string.IsNullOrWhiteSpace(query))
@@ -33,15 +35,17 @@ public partial class Commands
         int maxRedirects = redirects ?? config.MaxRedirects;
         fullHeaders = fullHeaders || config.AlwaysShowHeaders;
         string activeLang = lang ?? config.DefaultLanguage ?? "*";
+        SearchEngineType activeEngine = engine ?? config.DefaultSearchEngine;
 
-        AnsiConsole.MarkupLine($"[dim]Searching DuckDuckGo for:[/] {Markup.Escape(query)}\n");
+        var searchEngine = go2web.Search.SearchEngineFactory.Create(activeEngine);
+
+        AnsiConsole.MarkupLine($"[dim]Searching {searchEngine.Name} for:[/] {Markup.Escape(query)}\n");
 
         try
         {
             IHttpClient client = new CachingHttpClientDecorator(new SocketHttpClient());
             
-            string encodedQuery = HttpUtility.UrlEncode(query);
-            var searchUri = new Uri($"https://html.duckduckgo.com/html/?q={encodedQuery}");
+            var searchUri = searchEngine.BuildQueryUri(query);
 
             var response = await client.GetAsync(
                 searchUri, 
@@ -70,13 +74,9 @@ public partial class Commands
                 AnsiConsole.WriteLine();
             }
 
-            var parser = new HtmlParser();
-            using var document = parser.ParseDocument(response.BodyString);
+            var results = searchEngine.ParseResults(response.BodyString);
 
-            var resultLinks = document.QuerySelectorAll("a.result__a").Take(10).ToList();
-            var resultSnippets = document.QuerySelectorAll("a.result__snippet").Take(10).ToList();
-
-            if (resultLinks.Count == 0)
+            if (results.Count == 0)
             {
                 AnsiConsole.MarkupLine("[yellow]No results found.[/]");
                 return;
@@ -85,40 +85,15 @@ public partial class Commands
             var urls = new List<string>();
             var choices = new List<string>();
 
-            for (int i = 0; i < resultLinks.Count; i++)
+            for (int i = 0; i < results.Count; i++)
             {
-                var linkNode = resultLinks[i];
-                var snippetNode = i < resultSnippets.Count ? resultSnippets[i] : null;
+                var result = results[i];
+                urls.Add(result.Url);
 
-                string title = Regex.Replace(linkNode.TextContent, @"\s+", " ").Trim();
-                string href = linkNode.GetAttribute("href") ?? "";
-                string url = href;
-
-                if (href.Contains("uddg="))
-                {
-                    try
-                    {
-                        var uri = new Uri(href.StartsWith("//") ? "https:" + href : href);
-                        var queryDict = HttpUtility.ParseQueryString(uri.Query);
-                        var uddg = queryDict["uddg"];
-                        if (!string.IsNullOrEmpty(uddg))
-                        {
-                            url = uddg;
-                        }
-                    }
-                    catch { }
-                }
-
-                if (url.StartsWith("//")) url = "https:" + url;
-
-                string snippet = snippetNode != null ? Regex.Replace(snippetNode.TextContent, @"\s+", " ").Trim() : "";
-
-                urls.Add(url);
-
-                string truncatedSnippet = snippet.Length > 80 ? snippet.Substring(0, 77) + "..." : snippet;
+                string truncatedSnippet = result.Snippet.Length > 80 ? result.Snippet.Substring(0, 77) + "..." : result.Snippet;
 
                 // Add title and dimmed snippet to the choices list for the interactive prompt
-                choices.Add($"[bold white]{i + 1}.[/] {Markup.Escape(title)}\n   [dim]{Markup.Escape(truncatedSnippet)}[/]");
+                choices.Add($"[bold white]{i + 1}.[/] {Markup.Escape(result.Title)}\n   [dim]{Markup.Escape(truncatedSnippet)}[/]");
             }
 
             choices.Add("[red]Exit[/]");
@@ -127,7 +102,7 @@ public partial class Commands
             {
                 var selection = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
-                        .Title($"[bold]Top {resultLinks.Count} Results for '{Markup.Escape(query)}'[/]\nSelect a result to open, or [red]Exit[/] to quit:")
+                        .Title($"[bold]Top {results.Count} Results for '{Markup.Escape(query)}'[/]\nSelect a result to open, or [red]Exit[/] to quit:")
                         .PageSize(22) // 10 results * 2 lines + 1 exit
                         .AddChoices(choices));
 
@@ -145,7 +120,13 @@ public partial class Commands
             }
             else
             {
-                AnsiConsole.MarkupLine("[dim]Interactive selection is disabled in this terminal environment.[/]");
+                AnsiConsole.MarkupLine("[dim]Interactive selection is disabled in this terminal environment. Showing top results:[/]");
+                for (int i = 0; i < results.Count; i++)
+                {
+                    AnsiConsole.MarkupLine($"[bold white]{i + 1}.[/] [blue link={Markup.Escape(results[i].Url)}]{Markup.Escape(results[i].Title)}[/]");
+                    AnsiConsole.MarkupLine($"   [green dim]{Markup.Escape(results[i].Url)}[/]");
+                    AnsiConsole.MarkupLine($"   {Markup.Escape(results[i].Snippet)}\n");
+                }
             }
         }
         catch (Exception ex)
