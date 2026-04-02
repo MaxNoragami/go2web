@@ -4,7 +4,6 @@ using go2web.Configuration;
 using go2web.Http;
 using Spectre.Console;
 using System.Text.RegularExpressions;
-using System.Web;
 
 namespace go2web.Commands;
 
@@ -45,36 +44,7 @@ public partial class Commands
         {
             IHttpClient client = new CachingHttpClientDecorator(new SocketHttpClient());
             
-            var searchUri = searchEngine.BuildQueryUri(query);
-
-            var response = await client.GetAsync(
-                searchUri, 
-                maxRedirects, 
-                "text/html", 
-                activeLang, 
-                (statusCode, redirectUri) =>
-                {
-                    if (fullHeaders)
-                    {
-                        AnsiConsole.MarkupLine($"[cyan]{statusCode}[/] [dim]-> redirecting to {redirectUri}...[/]");
-                    }
-                });
-
-            if (fullHeaders)
-            {
-                AnsiConsole.MarkupLine($"\n[bold green]HTTP {response.StatusCode} {response.ReasonPhrase}[/]\n");
-                var headerTable = new Table().Border(TableBorder.Rounded).Title("Response Headers");
-                headerTable.AddColumn("Header");
-                headerTable.AddColumn("Value");
-                foreach (var header in response.Headers)
-                {
-                    headerTable.AddRow(new Markup($"[cyan]{Markup.Escape(header.Key)}[/]"), new Text(header.Value));
-                }
-                AnsiConsole.Write(headerTable);
-                AnsiConsole.WriteLine();
-            }
-
-            var results = searchEngine.ParseResults(response.BodyString);
+            var results = await searchEngine.SearchAsync(query, client);
 
             if (results.Count == 0)
             {

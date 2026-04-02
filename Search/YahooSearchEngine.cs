@@ -1,6 +1,6 @@
 using AngleSharp.Html.Parser;
+using go2web.Http;
 using System.Text.RegularExpressions;
-using System.Web;
 
 namespace go2web.Search;
 
@@ -8,14 +8,14 @@ public class YahooSearchEngine : ISearchEngine
 {
     public string Name => "Yahoo";
 
-    public Uri BuildQueryUri(string query)
+    public async Task<List<SearchResult>> SearchAsync(string query, IHttpClient client)
     {
-        string encodedQuery = HttpUtility.UrlEncode(query);
-        return new Uri($"https://search.yahoo.com/search?p={encodedQuery}");
-    }
+        string encodedQuery = Uri.EscapeDataString(query);
+        var uri = new Uri($"https://search.yahoo.com/search?p={encodedQuery}");
 
-    public List<SearchResult> ParseResults(string html)
-    {
+        var response = await client.GetAsync(uri, maxRedirects: 5, acceptHeader: "text/html", acceptLanguage: "*");
+        var html = response.BodyString;
+
         var parser = new HtmlParser();
         using var document = parser.ParseDocument(html);
 
@@ -40,15 +40,20 @@ public class YahooSearchEngine : ISearchEngine
             string title = Regex.Replace(linkNode.TextContent, @"\s+", " ").Trim();
             string url = linkNode.GetAttribute("href") ?? "";
             
-            // Un-escape Yahoo tracking urls if necessary: https://r.search.yahoo.com/.../RU=https://...
             if (url.Contains("/RU="))
             {
                 try
                 {
-                    var match = Regex.Match(url, @"/RU=([^/]+)/");
-                    if (match.Success)
+                    var redirectUri = new Uri(url);
+                    var redirectResponse = await client.GetAsync(redirectUri, maxRedirects: 0);
+                    
+                    if (redirectResponse.IsRedirect)
                     {
-                        url = HttpUtility.UrlDecode(match.Groups[1].Value);
+                        var location = redirectResponse.GetHeader("Location");
+                        if (!string.IsNullOrEmpty(location))
+                        {
+                            url = location;
+                        }
                     }
                 }
                 catch { }
@@ -69,6 +74,26 @@ public class YahooSearchEngine : ISearchEngine
             {
                 string title = Regex.Replace(links[i].TextContent, @"\s+", " ").Trim();
                 string url = links[i].GetAttribute("href") ?? "";
+                
+                if (url.Contains("/RU="))
+                {
+                    try
+                    {
+                        var redirectUri = new Uri(url);
+                        var redirectResponse = await client.GetAsync(redirectUri, maxRedirects: 0);
+                        
+                        if (redirectResponse.IsRedirect)
+                        {
+                            var location = redirectResponse.GetHeader("Location");
+                            if (!string.IsNullOrEmpty(location))
+                            {
+                                url = location;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
                 string snippet = i < snippets.Count ? Regex.Replace(snippets[i].TextContent, @"\s+", " ").Trim() : "";
                 results.Add(new SearchResult(title, url, snippet));
             }

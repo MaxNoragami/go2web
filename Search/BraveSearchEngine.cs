@@ -1,6 +1,6 @@
 using AngleSharp.Html.Parser;
+using go2web.Http;
 using System.Text.RegularExpressions;
-using System.Web;
 
 namespace go2web.Search;
 
@@ -8,14 +8,14 @@ public class BraveSearchEngine : ISearchEngine
 {
     public string Name => "Brave";
 
-    public Uri BuildQueryUri(string query)
+    public async Task<List<SearchResult>> SearchAsync(string query, IHttpClient client)
     {
-        string encodedQuery = HttpUtility.UrlEncode(query);
-        return new Uri($"https://search.brave.com/search?q={encodedQuery}&source=web");
-    }
+        string encodedQuery = Uri.EscapeDataString(query);
+        var uri = new Uri($"https://search.brave.com/search?q={encodedQuery}&source=web");
+        
+        var response = await client.GetAsync(uri, maxRedirects: 5, acceptHeader: "text/html", acceptLanguage: "*");
+        var html = response.BodyString;
 
-    public List<SearchResult> ParseResults(string html)
-    {
         var parser = new HtmlParser();
         using var document = parser.ParseDocument(html);
 

@@ -1,6 +1,6 @@
 using AngleSharp.Html.Parser;
+using go2web.Http;
 using System.Text.RegularExpressions;
-using System.Web;
 
 namespace go2web.Search;
 
@@ -8,14 +8,14 @@ public class DuckDuckGoSearchEngine : ISearchEngine
 {
     public string Name => "DuckDuckGo";
 
-    public Uri BuildQueryUri(string query)
+    public async Task<List<SearchResult>> SearchAsync(string query, IHttpClient client)
     {
-        string encodedQuery = HttpUtility.UrlEncode(query);
-        return new Uri($"https://html.duckduckgo.com/html/?q={encodedQuery}");
-    }
+        string encodedQuery = Uri.EscapeDataString(query);
+        var uri = new Uri($"https://html.duckduckgo.com/html/?q={encodedQuery}");
 
-    public List<SearchResult> ParseResults(string html)
-    {
+        var response = await client.GetAsync(uri, maxRedirects: 5, acceptHeader: "text/html", acceptLanguage: "*");
+        var html = response.BodyString;
+
         var parser = new HtmlParser();
         using var document = parser.ParseDocument(html);
 
@@ -37,12 +37,16 @@ public class DuckDuckGoSearchEngine : ISearchEngine
             {
                 try
                 {
-                    var uri = new Uri(href.StartsWith("//") ? "https:" + href : href);
-                    var queryDict = HttpUtility.ParseQueryString(uri.Query);
-                    var uddg = queryDict["uddg"];
-                    if (!string.IsNullOrEmpty(uddg))
+                    var redirectUri = new Uri(href.StartsWith("//") ? "https:" + href : href);
+                    var redirectResponse = await client.GetAsync(redirectUri, maxRedirects: 0);
+                    
+                    if (redirectResponse.IsRedirect)
                     {
-                        url = uddg;
+                        var location = redirectResponse.GetHeader("Location");
+                        if (!string.IsNullOrEmpty(location))
+                        {
+                            url = location;
+                        }
                     }
                 }
                 catch { }
