@@ -2,6 +2,7 @@ using ConsoleAppFramework;
 using Spectre.Console;
 using Spectre.Console.Json;
 using go2web.Http;
+using go2web.Http.Clients;
 using go2web.Configuration;
 using go2web.Rendering;
 using go2web.Commands.Enums;

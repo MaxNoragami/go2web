@@ -2,6 +2,7 @@ using ConsoleAppFramework;
 using go2web.Commands.Enums;
 using go2web.Configuration;
 using go2web.Http;
+using go2web.Http.Clients;
 using go2web.Search;
 using Spectre.Console;
 
