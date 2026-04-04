@@ -138,9 +138,12 @@ public class HttpCache
                 }
             }
 
-            entry.ResponseHeaders = newResponse.Headers.ToDictionary(k => k.Key, v => v.Value, StringComparer.OrdinalIgnoreCase);
-            entry.ExpiresAt = expiresAt;
-            entry.CachedAt = now;
+            entry = entry with
+            {
+                ResponseHeaders = newResponse.Headers.ToDictionary(k => k.Key, v => v.Value, StringComparer.OrdinalIgnoreCase),
+                ExpiresAt = expiresAt,
+                CachedAt = now
+            };
 
             try
             {

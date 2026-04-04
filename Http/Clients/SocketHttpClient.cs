@@ -104,7 +104,10 @@ public class SocketHttpClient : IHttpClient
 
     private async Task<HttpResponse> ParseResponseAsync(Stream stream)
     {
-        var response = new HttpResponse();
+        string httpVersion = string.Empty;
+        int statusCode = 0;
+        string reasonPhrase = string.Empty;
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // Helper to read a line up to \r\n
         async Task<string> ReadLineAsync()
@@ -135,11 +138,11 @@ public class SocketHttpClient : IHttpClient
         var statusParts = statusLine.Split(' ', 3);
         if (statusParts.Length >= 2)
         {
-            response.HttpVersion = statusParts[0];
-            if (int.TryParse(statusParts[1], out int statusCode))
-                response.StatusCode = statusCode;
+            httpVersion = statusParts[0];
+            if (int.TryParse(statusParts[1], out int parsedStatusCode))
+                statusCode = parsedStatusCode;
             if (statusParts.Length >= 3)
-                response.ReasonPhrase = statusParts[2];
+                reasonPhrase = statusParts[2];
         }
 
         // Read Headers
@@ -157,13 +160,15 @@ public class SocketHttpClient : IHttpClient
             {
                 string name = headerLine.Substring(0, colonIndex).Trim();
                 string value = headerLine.Substring(colonIndex + 1).Trim();
-                response.Headers[name] = value;
+                headers[name] = value;
             }
         }
 
+        string? GetHeader(string name) => headers.TryGetValue(name, out var val) ? val : null;
+
         // Read Body
-        bool isChunked = response.GetHeader("Transfer-Encoding")?.Equals("chunked", StringComparison.OrdinalIgnoreCase) == true;
-        string? contentLengthHeader = response.GetHeader("Content-Length");
+        bool isChunked = GetHeader("Transfer-Encoding")?.Equals("chunked", StringComparison.OrdinalIgnoreCase) == true;
+        string? contentLengthHeader = GetHeader("Content-Length");
         bool hasContentLength = int.TryParse(contentLengthHeader, out int contentLength);
 
         using var bodyStream = new MemoryStream();
@@ -231,8 +236,13 @@ public class SocketHttpClient : IHttpClient
             }
         }
 
-        response.BodyBytes = bodyStream.ToArray();
-
-        return response;
+        return new HttpResponse
+        {
+            HttpVersion = httpVersion,
+            StatusCode = statusCode,
+            ReasonPhrase = reasonPhrase,
+            Headers = headers,
+            BodyBytes = bodyStream.ToArray()
+        };
     }
 }

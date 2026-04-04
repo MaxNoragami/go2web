@@ -1,16 +1,18 @@
+using System.Text;
+
 namespace go2web.Http;
 
-public class HttpResponse
+public record HttpResponse
 {
-    public string HttpVersion { get; set; } = string.Empty;
-    public int StatusCode { get; set; }
-    public string ReasonPhrase { get; set; } = string.Empty;
+    public string HttpVersion { get; init; } = string.Empty;
+    public int StatusCode { get; init; }
+    public string ReasonPhrase { get; init; } = string.Empty;
     
-    public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> Headers { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     
-    public byte[] BodyBytes { get; set; } = Array.Empty<byte>();
+    public byte[] BodyBytes { get; init; } = Array.Empty<byte>();
 
-    public string BodyString => System.Text.Encoding.UTF8.GetString(BodyBytes);
+    public string BodyString => Encoding.UTF8.GetString(BodyBytes);
 
     public bool IsRedirect => StatusCode >= 300 && StatusCode < 400;
 

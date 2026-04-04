@@ -2,7 +2,7 @@ using go2web.Commands.Enums;
 
 namespace go2web.Configuration;
 
-public class AppConfig
+public record AppConfig
 {
     public int MaxRedirects { get; init; } = 5;
     public bool AlwaysShowHeaders { get; init; } = false;
