@@ -1,19 +1,17 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace go2web.Http;
 
-[JsonSerializable(typeof(CacheEntry))]
-public partial class CacheContext : JsonSerializerContext { }
-
+// Manages caching of HTTP responses based on request URI and headers, using a file-based cache with JSON serialization
 public class HttpCache
 {
     private readonly string _cacheDirectory;
     private readonly JsonSerializerOptions _options;
     private readonly CacheContext _context;
 
+    // Constructor initializes the cache directory path and JSON serialization options
     public HttpCache()
     {
         string baseDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -32,6 +30,7 @@ public class HttpCache
         _context = new CacheContext(_options);
     }
 
+    // Generates a unique cache key based on the request URI and relevant headers (Accept and Accept-Language) by hashing them together using SHA256
     private string GetCacheKey(Uri uri, string acceptHeader, string acceptLanguage)
     {
         string raw = $"{uri.AbsoluteUri}|{acceptHeader}|{acceptLanguage}";
@@ -39,8 +38,10 @@ public class HttpCache
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    // Constructs the file path for a given cache key by combining the cache directory with the key and a .json extension
     private string GetFilePath(string cacheKey) => Path.Combine(_cacheDirectory, $"{cacheKey}.json");
 
+    // Retrieves a cached response for the given URI and headers
     public CacheEntry? Get(Uri uri, string acceptHeader, string acceptLanguage)
     {
         string key = GetCacheKey(uri, acceptHeader, acceptLanguage);
@@ -59,6 +60,7 @@ public class HttpCache
         }
     }
 
+    // Stores a response in the cache
     public void Put(Uri uri, string acceptHeader, string acceptLanguage, HttpResponse response)
     {
         // Determine if response is cacheable
@@ -72,6 +74,7 @@ public class HttpCache
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DateTimeOffset? expiresAt = null;
 
+        // If the Cache-Control header contains a max-age directive, use it to calculate the expiration time for the cache entry
         if (cacheControl != null)
         {
             var parts = cacheControl.Split(',').Select(p => p.Trim().ToLowerInvariant());
@@ -114,15 +117,19 @@ public class HttpCache
         catch { }
     }
 
+    // Updates the expiration time of an existing cache entry based on a new HTTP response, typically used when revalidating a cached response with conditional headers
     public void UpdateExpiration(Uri uri, string acceptHeader, string acceptLanguage, HttpResponse newResponse)
     {
+        // First, retrieve the existing cache entry for the given URI and headers
         var entry = Get(uri, acceptHeader, acceptLanguage);
         if (entry != null)
         {
+            // If we have an existing cache entry, we want to update its expiration time based on the new response's Cache-Control header
             string? cacheControl = newResponse.GetHeader("Cache-Control");
             DateTimeOffset now = DateTimeOffset.UtcNow;
             DateTimeOffset? expiresAt = null;
 
+            // If the new response's Cache-Control header contains a max-age directive, use it to calculate the new expiration time for the cache entry
             if (cacheControl != null)
             {
                 var parts = cacheControl.Split(',').Select(p => p.Trim().ToLowerInvariant());
@@ -138,6 +145,7 @@ public class HttpCache
                 }
             }
 
+            // Update the cache entry's response headers and expiration time based on the new response, then save the updated cache entry back to the file system
             entry = entry with
             {
                 ResponseHeaders = newResponse.Headers.ToDictionary(k => k.Key, v => v.Value, StringComparer.OrdinalIgnoreCase),

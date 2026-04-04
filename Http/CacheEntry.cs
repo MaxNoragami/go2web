@@ -1,5 +1,6 @@
 namespace go2web.Http;
 
+// Represents an entry in the HTTP cache
 public record CacheEntry
 {
     public string Url { get; init; } = string.Empty;

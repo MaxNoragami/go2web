@@ -5,8 +5,10 @@ using System.Text;
 
 namespace go2web.Http.Clients;
 
+// A simple HTTP client implementation that uses raw sockets to perform HTTP GET requests
 public class SocketHttpClient : IHttpClient
 {
+    // Performs an HTTP GET request to the specified URI
     public async Task<HttpResponse> GetAsync(
         Uri uri, 
         int maxRedirects = 5, 
@@ -20,23 +22,30 @@ public class SocketHttpClient : IHttpClient
         Uri currentUri = uri;
         int redirectsCount = 0;
 
+        // Loop to handle redirects manually, up to the specified maximum number of redirects
         while (true)
         {
+            // Determine if the URI scheme is HTTP or HTTPS and set up the appropriate connection parameters
             bool isHttps = currentUri.Scheme == "https";
             if (currentUri.Scheme != "http" && currentUri.Scheme != "https")
             {
                 throw new NotSupportedException($"Only HTTP and HTTPS schemes are supported currently. Provided: {currentUri.Scheme}");
             }
 
+            // Determine the port to connect to based on the URI scheme (default 80 for HTTP, 443 for HTTPS)
             int port = currentUri.Port > 0 ? currentUri.Port : (isHttps ? 443 : 80);
 
+            // Resolve the host to an IP address and establish a TCP connection using a socket
             var hostEntry = await Dns.GetHostEntryAsync(currentUri.Host);
+            // Prefer IPv4 addresses, but fall back to the first available address if no IPv4 is found
             var ipAddress = hostEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) 
                             ?? hostEntry.AddressList[0];
 
+            // Create a socket and connect to the server
             using var socket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             await socket.ConnectAsync(ipAddress, port);
 
+            // Wrap the socket in a NetworkStream, and if it's HTTPS, wrap that in an SslStream to handle TLS encryption
             using var networkStream = new NetworkStream(socket, ownsSocket: true);
             Stream stream = networkStream;
 
@@ -66,6 +75,7 @@ public class SocketHttpClient : IHttpClient
             requestBuilder.Append($"Accept: {acceptHeader}\r\n");
             requestBuilder.Append($"Accept-Language: {acceptLanguage}\r\n");
 
+            // Include conditional headers if provided
             if (!string.IsNullOrEmpty(ifNoneMatch))
                 requestBuilder.Append($"If-None-Match: {ifNoneMatch}\r\n");
             if (!string.IsNullOrEmpty(ifModifiedSince))
@@ -73,37 +83,44 @@ public class SocketHttpClient : IHttpClient
 
             requestBuilder.Append("\r\n"); // End of headers
 
+            // Send the HTTP request over the stream
             byte[] requestBytes = Encoding.ASCII.GetBytes(requestBuilder.ToString());
             await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
 
             // Read and parse the response
             var response = await ParseResponseAsync(stream);
-
+            
             if (response.StatusCode == 301 || response.StatusCode == 302 || 
                 response.StatusCode == 303 || response.StatusCode == 307 || 
                 response.StatusCode == 308)
             {
+                // Handle HTTP redirects by checking the Location header and updating the current URI accordingly
                 if (redirectsCount >= maxRedirects)
                 {
                     throw new Exception($"Too many redirects (exceeded maximum of {maxRedirects})");
                 }
 
+                // Get the Location header from the response to determine where to redirect to
                 var location = response.GetHeader("Location");
                 if (!string.IsNullOrEmpty(location))
                 {
                     currentUri = new Uri(currentUri, location);
                     redirectsCount++;
+                    // Invoke the onRedirect callback to notify about the redirect status code and new URI, then continue the loop to follow the redirect
                     onRedirect?.Invoke(response.StatusCode, currentUri);
                     continue;
                 }
             }
 
+            // If we are not redirecting, return the parsed response to the caller
             return response;
         }
     }
 
+    // Helper method to read and parse the HTTP response from the stream, including status line, headers, and body handling (chunked or content-length)
     private async Task<HttpResponse> ParseResponseAsync(Stream stream)
     {
+        // Initialize variables to hold the parsed response components
         string httpVersion = string.Empty;
         int statusCode = 0;
         string reasonPhrase = string.Empty;
@@ -164,6 +181,7 @@ public class SocketHttpClient : IHttpClient
             }
         }
 
+        // Local function to get header values case-insensitively
         string? GetHeader(string name) => headers.TryGetValue(name, out var val) ? val : null;
 
         // Read Body
@@ -236,6 +254,7 @@ public class SocketHttpClient : IHttpClient
             }
         }
 
+        // Return the fully parsed HTTP response
         return new HttpResponse
         {
             HttpVersion = httpVersion,

@@ -7,13 +7,16 @@ using System.Text.RegularExpressions;
 
 namespace go2web.Rendering;
 
+// Class responsible for rendering HTML content into a format suitable for terminal display using Spectre.Console
 public class HtmlRenderer
 {
+    // A set of HTML tags that should be ignored during rendering, as they typically do not contribute meaningful content to the rendered output
     private static readonly HashSet<string> IgnoredTags = new(StringComparer.OrdinalIgnoreCase) 
     { 
         "SCRIPT", "STYLE", "NOSCRIPT", "SVG", "META", "LINK", "HEAD", "IFRAME", "TITLE"
     };
 
+    // A set of HTML tags that are considered block-level elements, which typically should be rendered with line breaks before and after them to maintain proper formatting in the terminal output
     private static readonly HashSet<string> BlockTags = new(StringComparer.OrdinalIgnoreCase) 
     { 
         "DIV", "P", "H1", "H2", "H3", "H4", "H5", "H6",
@@ -21,14 +24,18 @@ public class HtmlRenderer
         "FOOTER", "MAIN", "SECTION", "ARTICLE", "ASIDE", "NAV", "BODY", "HR"
     };
 
+    // Renders the given HTML string into a collection of IRenderable objects that can be displayed in the terminal, using the provided base URI to resolve relative links and resources
     public IEnumerable<IRenderable> Render(string html, Uri baseUri)
     {
+        // Parse the HTML content using AngleSharp to create a DOM representation of the document
         var parser = new HtmlParser();
         using var document = parser.ParseDocument(html);
         
+        // A list to hold the rendered output as IRenderable objects, and a StringBuilder to accumulate text content while traversing the DOM
         var renderables = new List<IRenderable>();
         var sb = new StringBuilder();
 
+        // A helper method to flush the accumulated text in the StringBuilder into a Markup renderable and add it to the list of renderables, while also cleaning up whitespace and ensuring proper paragraph breaks
         void FlushText()
         {
             string text = sb.ToString();
@@ -46,6 +53,7 @@ public class HtmlRenderer
             sb.Clear();
         }
 
+        // A recursive method to walk through the DOM nodes, render their content according to their tag types, and accumulate text in the StringBuilder or create renderables for tables and images as needed.
         void WalkNode(INode node, bool preserveWhitespace)
         {
             if (node is IElement element && element.TagName.Equals("TABLE", StringComparison.OrdinalIgnoreCase))
@@ -68,6 +76,7 @@ public class HtmlRenderer
         return renderables;
     }
 
+    // A helper method to resolve a potentially relative URL against the base URI of the document, ensuring that links and resources are correctly identified and can be accessed when rendered in the terminal
     private string ResolveUrl(string url, Uri baseUri)
     {
         if (string.IsNullOrWhiteSpace(url)) return "";
@@ -82,6 +91,7 @@ public class HtmlRenderer
         return url;
     }
 
+    // Parses an HTML table element and converts it into a Spectre.Console Table renderable, extracting headers and rows while ensuring proper formatting and handling of edge cases such as missing headers or irregular row structures
     private Table ParseTable(IElement tableElement, Uri baseUri)
     {
         var table = new Table().Border(TableBorder.Rounded);
@@ -161,6 +171,7 @@ public class HtmlRenderer
         return table;
     }
 
+    // A helper method to render a DOM node and its children into a string representation, applying appropriate formatting based on the HTML tags and ensuring that whitespace is handled according to the context
     private string RenderNodeToString(INode node, bool preserveWhitespace, Uri baseUri)
     {
         var tempSb = new StringBuilder();
@@ -177,6 +188,7 @@ public class HtmlRenderer
         return tempSb.ToString();
     }
 
+    // A helper method to render a DOM node and its children into the StringBuilder, applying appropriate formatting based on the HTML tags and ensuring that whitespace is handled according to the context
     private void RenderNodeToBuilder(INode node, StringBuilder sb, bool preserveWhitespace, Uri baseUri, Action<INode, bool> walkChildren)
     {
         if (node is IText textNode)
@@ -332,6 +344,7 @@ public class HtmlRenderer
         }
     }
 
+    // A helper method to determine the appropriate Spectre.Console style string based on the HTML tag name, allowing for consistent formatting of headings, bold/italic text, and links in the rendered output
     private string? GetSpectreStyle(string tagName)
     {
         return tagName.ToUpperInvariant() switch

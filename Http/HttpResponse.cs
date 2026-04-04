@@ -2,6 +2,7 @@ using System.Text;
 
 namespace go2web.Http;
 
+// Represents an HTTP response
 public record HttpResponse
 {
     public string HttpVersion { get; init; } = string.Empty;

@@ -1,5 +1,6 @@
 namespace go2web.Http;
 
+// Defines an interface for an HTTP client that can perform GET requests
 public interface IHttpClient
 {
     Task<HttpResponse> GetAsync(
