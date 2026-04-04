@@ -23,6 +23,7 @@ public partial class Commands
 
         try
         {
+            // Start the editor process
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo

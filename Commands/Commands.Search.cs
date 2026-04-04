@@ -2,6 +2,7 @@ using ConsoleAppFramework;
 using go2web.Commands.Enums;
 using go2web.Configuration;
 using go2web.Http;
+using go2web.Http.Clients;
 using go2web.Search;
 using Spectre.Console;
 
@@ -23,6 +24,7 @@ public partial class Commands
         string? lang = null,
         SearchEngineType? engine = null)
     {
+        // Join the search terms into a single query string
         string query = string.Join(" ", searchTerms);
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -30,20 +32,24 @@ public partial class Commands
             return;
         }
 
+        // Load configuration for defaults and overrides
         var config = ConfigLoader.Load();
         int maxRedirects = redirects ?? config.MaxRedirects;
         fullHeaders = fullHeaders || config.AlwaysShowHeaders;
         string activeLang = lang ?? config.DefaultLanguage ?? "*";
         SearchEngineType activeEngine = engine ?? config.DefaultSearchEngine;
 
+        // Create the appropriate search engine instance based on the selected type
         var searchEngine = SearchEngineFactory.Create(activeEngine);
 
         AnsiConsole.MarkupLine($"[dim]Searching {searchEngine.Name} for:[/] {Markup.Escape(query)}\n");
 
         try
         {
+            // Use a caching HTTP client
             IHttpClient client = new CachingHttpClientDecorator(new SocketHttpClient());
             
+            // Perform the search and get results
             var results = await searchEngine.SearchAsync(query, client);
 
             if (results.Count == 0)
@@ -52,6 +58,7 @@ public partial class Commands
                 return;
             }
 
+            // Prepare lists for URLs and display choices for the interactive prompt
             var urls = new List<string>();
             var choices = new List<string>();
 
@@ -60,6 +67,7 @@ public partial class Commands
                 var result = results[i];
                 urls.Add(result.Url);
 
+                // Truncate the snippet for display if it's too long
                 string truncatedSnippet = result.Snippet.Length > 80 ? result.Snippet.Substring(0, 77) + "..." : result.Snippet;
 
                 // Add title and dimmed snippet to the choices list for the interactive prompt
@@ -68,8 +76,10 @@ public partial class Commands
 
             choices.Add("[red]Exit[/]");
 
+            // If the terminal supports interactivity, show a selection prompt. Otherwise, just list the results
             if (AnsiConsole.Profile.Capabilities.Interactive)
             {
+                // Show an interactive selection prompt to the user
                 var selection = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title($"[bold]Top {results.Count} Results for '{Markup.Escape(query)}'[/]\nSelect a result to open, or [red]Exit[/] to quit:")
@@ -78,11 +88,13 @@ public partial class Commands
 
                 if (selection != "[red]Exit[/]")
                 {
+                    // Find the index of the selected choice and get the corresponding URL
                     int selectedIndex = choices.IndexOf(selection);
                     if (selectedIndex >= 0 && selectedIndex < urls.Count)
                     {
                         string selectedUrl = urls[selectedIndex];
                         
+                        // Make an HTTP request to the selected URL and display the response
                         await Url(selectedUrl, fullHeaders, maxRedirects, AcceptType.Html, activeLang);
                     }
                 }

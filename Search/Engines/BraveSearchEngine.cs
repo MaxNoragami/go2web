@@ -2,20 +2,24 @@ using AngleSharp.Html.Parser;
 using go2web.Http;
 using System.Text.RegularExpressions;
 
-namespace go2web.Search;
+namespace go2web.Search.Engines;
 
+// An implementation of the ISearchEngine interface for performing searches using the Brave search engine
 public class BraveSearchEngine : ISearchEngine
 {
     public string Name => "Brave";
 
     public async Task<List<SearchResult>> SearchAsync(string query, IHttpClient client)
     {
+        // Encode the search query and construct the Brave search URL
         string encodedQuery = Uri.EscapeDataString(query);
         var uri = new Uri($"https://search.brave.com/search?q={encodedQuery}&source=web");
         
+        // Perform an HTTP GET request to the Brave search URL and retrieve the HTML response
         var response = await client.GetAsync(uri, maxRedirects: 5, acceptHeader: "text/html", acceptLanguage: "*");
         var html = response.BodyString;
 
+        // Parse the HTML response using AngleSharp to extract search results, handling potential variations in the DOM structure and ensuring that only valid results are included in the final list of SearchResult objects
         var parser = new HtmlParser();
         using var document = parser.ParseDocument(html);
 

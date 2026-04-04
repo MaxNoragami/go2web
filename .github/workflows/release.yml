@@ -42,12 +42,12 @@ jobs:
             artifact_name: go2web-win-x64
             executable: go2web.exe
           - target: osx-x64
-            os: macos-latest
+            os: macos-15-intel
             script: install.sh
             artifact_name: go2web-osx-x64
             executable: go2web
           - target: osx-arm64
-            os: macos-14
+            os: macos-latest
             script: install.sh
             artifact_name: go2web-osx-arm64
             executable: go2web

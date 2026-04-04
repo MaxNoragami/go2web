@@ -2,6 +2,7 @@ using ConsoleAppFramework;
 using Spectre.Console;
 using Spectre.Console.Json;
 using go2web.Http;
+using go2web.Http.Clients;
 using go2web.Configuration;
 using go2web.Rendering;
 using go2web.Commands.Enums;
@@ -36,10 +37,12 @@ public partial class Commands
             return;
         }
 
+        // Load configuration for defaults and overrides
         var config = ConfigLoader.Load();
         int maxRedirects = redirects ?? config.MaxRedirects;
         fullHeaders = fullHeaders || config.AlwaysShowHeaders;
         
+        // Determine the active Accept header value based on the command-line argument or configuration default
         string activeLang = lang ?? config.DefaultLanguage ?? "*";
         
         AcceptType activeAccept = accept ?? (Enum.TryParse<AcceptType>(config.DefaultAccept, true, out var parsedAccept) ? parsedAccept : AcceptType.Html);
@@ -56,6 +59,7 @@ public partial class Commands
 
         try
         {
+            // Use a caching HTTP client to perform the GET request to the specified URL with the appropriate headers and redirect handling
             IHttpClient client = new CachingHttpClientDecorator(new SocketHttpClient());
             var response = await client.GetAsync(uri, maxRedirects, acceptHeaderValue, activeLang, (statusCode, redirectUri) =>
             {
@@ -64,6 +68,7 @@ public partial class Commands
 
             AnsiConsole.MarkupLine($"\n[bold green]HTTP {response.StatusCode} {response.ReasonPhrase}[/]\n");
 
+            // If the user requested to see full headers, display them in a formatted table
             if (fullHeaders)
             {
                 var table = new Table().Border(TableBorder.Rounded).Title("Response Headers");
@@ -77,6 +82,7 @@ public partial class Commands
                 AnsiConsole.WriteLine();
             }
             
+            // Determine the content type of the response and choose how to display it based on the active Accept header and actual content type
             var contentType = response.GetHeader("Content-Type") ?? "text/html";
             bool isJsonContent = contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase);
             bool isHtmlContent = contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase);
@@ -92,8 +98,10 @@ public partial class Commands
                 activeAccept = isJsonContent ? AcceptType.Json : AcceptType.Plain;
             }
 
+            // Display the response body according to the determined content type and active Accept header
             if (isJsonContent && activeAccept != AcceptType.Plain)
             {
+                // Try to pretty-print JSON content
                 try
                 {
                     AnsiConsole.Write(new JsonText(response.BodyString));
@@ -106,6 +114,7 @@ public partial class Commands
             }
             else if ((isHtmlContent && activeAccept != AcceptType.Plain) || activeAccept == AcceptType.Html)
             {
+                // Render HTML content using the HtmlRenderer to convert it into ANSI-formatted text for terminal display
                 var renderer = new HtmlRenderer();
                 var renderables = renderer.Render(response.BodyString, uri);
                 foreach (var r in renderables)
